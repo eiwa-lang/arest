@@ -1,5 +1,5 @@
 import { JsonValue } from "std.json"
-import { ArestBuilder } from ".arest_builder"
+import { ArestBuilder } from ".arest.arest_builder"
 
 type McpCall(
     val server: ArestBuilder,

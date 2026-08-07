@@ -1,6 +1,6 @@
 import { ServerConnection } from "std.http"
 
-import { ArestBuilder } from ".arest_builder"
+import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
 
 object Initialize {

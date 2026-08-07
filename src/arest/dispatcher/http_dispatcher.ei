@@ -1,9 +1,9 @@
 import { ServerConnection, Request } from "std.http"
 import { Log } from "std.log"
 
-import { ArestBuilder } from ".arest_builder"
-import { ApplicationCall } from ".application_call"
-import { Route } from ".routing"
+import { ArestBuilder } from ".arest.arest_builder"
+import { ApplicationCall } from ".arest.application_call"
+import { Route } from ".arest.routing"
 
 type HttpDispatcher(val builder: ArestBuilder) {
 

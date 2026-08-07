@@ -1,9 +1,9 @@
 import { ServerConnection } from "std.http"
 
-import { ArestBuilder } from ".arest_builder"
+import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
-import { McpPrompt } from ".mcp.mcp_builder"
-import { McpCall } from ".mcp.mcp_call"
+import { McpPrompt } from ".arest.mcp.mcp_builder"
+import { McpCall } from ".arest.mcp.mcp_call"
 
 object Prompts {
 

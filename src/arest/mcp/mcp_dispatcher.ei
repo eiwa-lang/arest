@@ -1,11 +1,11 @@
 import { ServerConnection, Request } from "std.http"
 
-import { ArestBuilder } from ".arest_builder"
+import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
-import { Initialize } from "protocol.initialize"
-import { Tools } from "protocol.tools"
-import { Resources } from "protocol.resources"
-import { Prompts } from "protocol.prompts"
+import { Initialize } from ".arest.mcp.protocol.initialize"
+import { Tools } from ".arest.mcp.protocol.tools"
+import { Resources } from ".arest.mcp.protocol.resources"
+import { Prompts } from ".arest.mcp.protocol.prompts"
 
 type McpDispatcher(val builder: ArestBuilder) {
 

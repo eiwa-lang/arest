@@ -1,6 +1,6 @@
 import { MutableList } from "std.collections"
 
-import { McpCall } from "mcp_call"
+import { McpCall } from ".arest.mcp.mcp_call"
 
 type McpTool(
     val name: String,

@@ -1,5 +1,5 @@
 import { ServerConnection, Request } from "std.http"
-import { ArestBuilder } from "arest_builder"
+import { ArestBuilder } from ".arest.arest_builder"
 
 type ApplicationCall(
     val conn: ServerConnection,

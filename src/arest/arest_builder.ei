@@ -1,5 +1,5 @@
-import { RoutingBuilder } from "routing"
-import { McpBuilder } from ".mcp.mcp_builder"
+import { RoutingBuilder } from ".arest.routing"
+import { McpBuilder } from ".arest.mcp.mcp_builder"
 
 type ArestBuilder(
     val port: Int,
