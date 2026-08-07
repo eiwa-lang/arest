@@ -1,0 +1,51 @@
+import { ServerConnection } from "std.http"
+
+import { ArestBuilder } from ".arest_builder"
+import { JsonRpc } from "std.jsonrpc"
+import { McpPrompt } from ".mcp.mcp_builder"
+import { McpCall } from ".mcp.mcp_call"
+
+object Prompts {
+
+    fun list(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
+        var out = "{\"prompts\":["
+        var count = 0
+        var i = 0
+        val prompts = builder.mcpBuilder.prompts
+        while (i < prompts.size()) {
+            val item = prompts.get(i)
+            if (item is McpPrompt) {
+                val prompt = item
+                if (count > 0) {
+                    out = out + ","
+                }
+                out = out + "{\"name\":\"" + prompt.name + "\"}"
+                count = count + 1
+            }
+            i = i + 1
+        }
+        conn.writeResponse(200, "application/json", rpc.response(out + "]"))
+    }
+
+    fun get(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
+        val name = rpc.argumentString("name")
+        var i = 0
+        val prompts = builder.mcpBuilder.prompts
+        while (i < prompts.size()) {
+            val item = prompts.get(i)
+            if (item is McpPrompt) {
+                val prompt = item
+                if (prompt.name == name) {
+                    val call = McpCall(builder, prompt.name, rpc.params)
+                    prompt.handler(call)
+                    conn.writeResponse(200, "application/json",
+                        rpc.response("{\n    \"description\": \"" + call.result + "\",\n    \"messages\": []\n  }"))
+                    return
+                }
+            }
+            i = i + 1
+        }
+        conn.writeResponse(200, "application/json",
+            rpc.errorResponse(-32602, "Prompt not found: " + name))
+    }
+}

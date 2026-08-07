@@ -1,0 +1,52 @@
+import { ServerConnection } from "std.http"
+
+import { ArestBuilder } from ".arest_builder"
+import { JsonRpc } from "std.jsonrpc"
+import { jsonEscape } from "std.json"
+import { McpResource } from ".mcp.mcp_builder"
+import { McpCall } from ".mcp.mcp_call"
+
+object Resources {
+
+    fun list(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
+        var out = "{\"resources\":["
+        var count = 0
+        var i = 0
+        val resources = builder.mcpBuilder.resources
+        while (i < resources.size()) {
+            val item = resources.get(i)
+            if (item is McpResource) {
+                val resource = item
+                if (count > 0) {
+                    out = out + ","
+                }
+                out = out + "{\"uri\":\"" + resource.uri + "\"}"
+                count = count + 1
+            }
+            i = i + 1
+        }
+        conn.writeResponse(200, "application/json", rpc.response(out + "]"))
+    }
+
+    fun read(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
+        val uri = rpc.argumentString("uri")
+        var i = 0
+        val resources = builder.mcpBuilder.resources
+        while (i < resources.size()) {
+            val item = resources.get(i)
+            if (item is McpResource) {
+                val resource = item
+                if (resource.uri == uri) {
+                    val call = McpCall(builder, resource.uri, rpc.params)
+                    resource.handler(call)
+                    val contents = "{\"contents\":[{\"uri\":\"" + jsonEscape(resource.uri) + "\",\"text\":\"" + jsonEscape(call.result) + "\"}]}"
+                    conn.writeResponse(200, "application/json", rpc.response(contents))
+                    return
+                }
+            }
+            i = i + 1
+        }
+        conn.writeResponse(200, "application/json",
+            rpc.errorResponse(-32602, "Resource not found: " + uri))
+    }
+}

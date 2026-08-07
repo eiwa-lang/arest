@@ -1,0 +1,57 @@
+import { MutableList } from "std.collections"
+
+import { McpCall } from "mcp_call"
+
+type McpTool(
+    val name: String,
+    val handler: McpCall.() -> Void
+)
+
+type McpResource(
+    val uri: String,
+    val handler: McpCall.() -> Void
+)
+
+type McpPrompt(
+    val name: String,
+    val handler: McpCall.() -> Void
+)
+
+type McpBuilder(
+    val tools: MutableList<McpTool?> = MutableList<McpTool?>(),
+    val resources: MutableList<McpResource?> = MutableList<McpResource?>(),
+    val prompts: MutableList<McpPrompt?> = MutableList<McpPrompt?>(),
+    var serverName: String = "arest",
+    var serverVersion: String = "0.1.0",
+    var serverInstructions: String = "",
+    var path: String = "/mcp"
+) {
+
+    fun tool(name: String, handler: McpCall.() -> Void) {
+        tools.add(McpTool(name, handler))
+    }
+
+    fun resource(uri: String, handler: McpCall.() -> Void) {
+        resources.add(McpResource(uri, handler))
+    }
+
+    fun prompt(name: String, handler: McpCall.() -> Void) {
+        prompts.add(McpPrompt(name, handler))
+    }
+
+    fun name(value: String) {
+        this.serverName = value
+    }
+
+    fun version(value: String) {
+        this.serverVersion = value
+    }
+
+    fun instructions(value: String) {
+        this.serverInstructions = value
+    }
+
+    fun http(value: String) {
+        this.path = value
+    }
+}

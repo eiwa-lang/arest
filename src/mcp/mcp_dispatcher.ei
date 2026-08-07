@@ -1,0 +1,32 @@
+import { ServerConnection, Request } from "std.http"
+
+import { ArestBuilder } from ".arest_builder"
+import { JsonRpc } from "std.jsonrpc"
+import { Initialize } from "protocol.initialize"
+import { Tools } from "protocol.tools"
+import { Resources } from "protocol.resources"
+import { Prompts } from "protocol.prompts"
+
+type McpDispatcher(val builder: ArestBuilder) {
+
+    fun dispatch(conn: ServerConnection, req: Request) {
+        if (req.method != "POST") {
+            conn.writeResponse(405, "application/json",
+                "{\n  \"jsonrpc\": \"2.0\",\n  \"error\": {\n    \"code\": -32600,\n    \"message\": \"Method Not Allowed\"\n  }\n}")
+            return
+        }
+
+        val rpc = JsonRpc.parse(req.body)
+        when (rpc.method) {
+            "initialize" -> Initialize.execute(conn, rpc, builder)
+            "tools/list" -> Tools.list(conn, rpc, builder)
+            "tools/call" -> Tools.call(conn, rpc, builder)
+            "resources/list" -> Resources.list(conn, rpc, builder)
+            "resources/read" -> Resources.read(conn, rpc, builder)
+            "prompts/list" -> Prompts.list(conn, rpc, builder)
+            "prompts/get" -> Prompts.get(conn, rpc, builder)
+            else -> conn.writeResponse(404, "application/json",
+                rpc.errorResponse(-32601, "Method not found"))
+        }
+    }
+}

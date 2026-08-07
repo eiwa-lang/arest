@@ -1,0 +1,54 @@
+import { ServerConnection } from "std.http"
+
+import { ArestBuilder } from ".arest_builder"
+import { JsonRpc } from "std.jsonrpc"
+import { JsonValue, jsonEscape } from "std.json"
+import { McpTool } from ".mcp.mcp_builder"
+import { McpCall } from ".mcp.mcp_call"
+
+object Tools {
+
+    fun list(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
+        var out = "{\"tools\":["
+        var count = 0
+        var i = 0
+        val tools = builder.mcpBuilder.tools
+        while (i < tools.size()) {
+            val item = tools.get(i)
+            if (item is McpTool) {
+                val tool = item
+                if (count > 0) {
+                    out = out + ","
+                }
+                out = out + "{\"name\":\"" + tool.name + "\"}"
+                count = count + 1
+            }
+            i = i + 1
+        }
+        conn.writeResponse(200, "application/json", rpc.response(out + "]"))
+    }
+
+    fun call(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
+        val name = rpc.argumentString("name")
+        var i = 0
+        val tools = builder.mcpBuilder.tools
+        while (i < tools.size()) {
+            val item = tools.get(i)
+            if (item is McpTool) {
+                val tool = item
+                if (tool.name == name) {
+                    val argsVal = rpc.params.get("arguments")
+                    val args = if (argsVal != null) argsVal!! else JsonValue()
+                    val call = McpCall(builder, tool.name, args)
+                    tool.handler(call)
+                    conn.writeResponse(200, "application/json",
+                        rpc.response("\"" + jsonEscape(call.result) + "\""))
+                    return
+                }
+            }
+            i = i + 1
+        }
+        conn.writeResponse(200, "application/json",
+            rpc.errorResponse(-32602, "Tool not found: " + name))
+    }
+}
