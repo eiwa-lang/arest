@@ -12,6 +12,10 @@ type ArestBuilder(
         init(routingBuilder)
     }
 
+    fun static(prefix: String, dir: String) {
+        routingBuilder.static(prefix, dir)
+    }
+
     fun mcp(init: McpBuilder.() -> Void) {
         init(mcpBuilder)
     }

@@ -4,7 +4,15 @@ type Route(
     val handler: ApplicationCall.() -> Void
 )
 
-type RoutingBuilder(val routes: MutableList<Route?> = MutableList<Route?>()) {
+type StaticConfig(
+    val prefix: String,
+    val dir: String
+)
+
+type RoutingBuilder(
+    val routes: MutableList<Route?> = MutableList<Route?>(),
+    val staticRoutes: MutableList<StaticConfig?> = MutableList<StaticConfig?>()
+) {
 
     fun get(path: String, handler: ApplicationCall.() -> Void) {
         routes.add(Route("GET", path, handler))
@@ -32,5 +40,9 @@ type RoutingBuilder(val routes: MutableList<Route?> = MutableList<Route?>()) {
 
     fun options(path: String, handler: ApplicationCall.() -> Void) {
         routes.add(Route("OPTIONS", path, handler))
+    }
+
+    fun static(prefix: String, dir: String) {
+        staticRoutes.add(StaticConfig(prefix, dir))
     }
 }

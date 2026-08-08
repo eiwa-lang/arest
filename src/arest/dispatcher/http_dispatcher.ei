@@ -1,9 +1,11 @@
 import { ServerConnection, Request } from "std.http"
 import { Log } from "std.log"
+import { File } from "std.fs"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { ApplicationCall } from ".arest.application_call"
-import { Route } from ".arest.routing"
+import { Route, StaticConfig } from ".arest.routing"
+import { Mime, MimeType } from ".arest.mime"
 
 type HttpDispatcher(val builder: ArestBuilder) {
 
@@ -25,9 +27,50 @@ type HttpDispatcher(val builder: ArestBuilder) {
             i = i + 1
         }
 
+        if (found == false && req.method == "GET") {
+            found = serveStatic(conn, req)
+        }
+
         if (found == false) {
             Log.warn { "[Arest] HTTP " + req.method + " " + req.path + " -> 404 Not Found" }
             conn.writeResponse(404, "text/plain", "Not Found")
         }
+    }
+
+    fun serveStatic(conn: ServerConnection, req: Request): Bool {
+        val statics = builder.routingBuilder.staticRoutes
+        var i = 0
+        while (i < statics.size()) {
+            val sc = statics.get(i)
+            if (sc is StaticConfig) {
+                val cfg = sc
+                if (req.path.startsWith(cfg.prefix)) {
+                    var rel = req.path.substring(cfg.prefix.length, req.path.length)
+                    if (rel == "" || rel == "/") {
+                        rel = "/index.html"
+                    }
+                    val filePath = buildPath(cfg.dir, rel)
+                    if (!rel.contains("..")) {
+                        if (File.exists(filePath)) {
+                            val content = File.read(filePath)
+                            val mime = Mime.headerValue(Mime.resolve(filePath))
+                            Log.info { "[Arest] HTTP GET " + req.path + " -> 200 OK" }
+                            conn.writeResponse(200, mime, content)
+                            return true
+                        }
+                    } else {
+                        Log.warn { "[Arest] HTTP GET " + req.path + " -> 403 Traversal Denied" }
+                        conn.writeResponse(403, "text/plain", "Forbidden")
+                        return true
+                    }
+                }
+            }
+            i = i + 1
+        }
+        return false
+    }
+
+    fun buildPath(dir: String, rel: String): String {
+        return if (rel.startsWith("/")) dir + rel else dir + "/" + rel
     }
 }
