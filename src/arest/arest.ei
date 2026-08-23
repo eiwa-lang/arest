@@ -1,5 +1,6 @@
 import { Server, ServerConnection } from "std.http"
 import { Log } from "std.log"
+import { Scheduler } from "std.coroutines"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { Dispatcher } from ".arest.dispatcher.dispatcher"
@@ -20,6 +21,13 @@ fun arest(port: Int, init: ArestBuilder.() -> Void) {
                     task {
                         dispatcher.dispatch(conn)
                     }
+                    // Stackless cooperative scheduler: a fire-and-forget `task {}`
+                    // only runs when something drains the queue. The blocking-poll
+                    // accept loop below never returns to the root to drain, so pump
+                    // the scheduler right after scheduling the connection handler.
+                    // Handlers are synchronous (blocking poll), so this runs each
+                    // connection to completion before accepting the next one.
+                    Scheduler.run()
                 }
             } catch (e) {
                 Log.error(e) { "[Arest] Error processing connection" }
