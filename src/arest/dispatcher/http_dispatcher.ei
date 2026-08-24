@@ -32,9 +32,22 @@ type HttpDispatcher(val builder: ArestBuilder) {
         }
 
         if (found == false) {
+            found = serveHealth(conn, req)
+        }
+
+        if (found == false) {
             Log.warn { "[Arest] HTTP " + req.method + " " + req.path + " -> 404 Not Found" }
             conn.writeResponse(404, "text/plain", "Not Found")
         }
+    }
+
+    fun serveHealth(conn: ServerConnection, req: Request): Bool {
+        if (builder.healthEnabled && req.method == "GET" && req.path == builder.healthPath) {
+            Log.info { "[Arest] HTTP GET " + builder.healthPath + " -> 200 OK" }
+            conn.writeResponse(200, "application/json", "{\"status\":\"ok\"}")
+            return true
+        }
+        return false
     }
 
     fun serveStatic(conn: ServerConnection, req: Request): Bool {

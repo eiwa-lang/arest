@@ -4,9 +4,16 @@ import { McpBuilder } from ".arest.mcp.mcp_builder"
 type ArestBuilder(
     val port: Int,
     var running: Bool = true,
+    var healthEnabled: Bool = false,
+    var healthPath: String = "/health",
     val routingBuilder: RoutingBuilder = RoutingBuilder(),
     val mcpBuilder: McpBuilder = McpBuilder()
 ) {
+
+    fun health(path: String = "/health") {
+        healthEnabled = true
+        healthPath = path
+    }
 
     fun routing(init: RoutingBuilder.() -> Void) {
         init(routingBuilder)
