@@ -4,7 +4,7 @@ import { ArestBuilder } from ".arest.arest_builder"
 import { HttpDispatcher } from ".arest.dispatcher.http_dispatcher"
 import { McpDispatcher } from ".arest.mcp.mcp_dispatcher"
 
-type Dispatcher(
+type RequestDispatcher(
     val builder: ArestBuilder,
     val http: HttpDispatcher,
     val mcp: McpDispatcher
