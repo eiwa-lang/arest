@@ -2,7 +2,6 @@ import { ServerConnection } from "std.http"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
-import { JsonValue } from "std.json"
 import { MutableList } from "std.collections"
 import { McpPrompt } from ".arest.mcp.mcp_builder"
 import { McpCall } from ".arest.mcp.mcp_call"
