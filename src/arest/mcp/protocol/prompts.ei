@@ -24,7 +24,7 @@ object Prompts {
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json", rpc.response(out + "]"))
+        conn.writeResponse(200, "application/json", rpc.response(out + "]}"))
     }
 
     fun get(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {

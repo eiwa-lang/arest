@@ -20,12 +20,12 @@ object Tools {
                 if (count > 0) {
                     out = out + ","
                 }
-                out = out + "{\"name\":\"" + tool.name + "\"}"
+                out = out + "{\"name\":\"" + tool.name + "\",\"inputSchema\":{\"type\":\"object\",\"properties\":{}}}"
                 count = count + 1
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json", rpc.response(out + "]"))
+        conn.writeResponse(200, "application/json", rpc.response(out + "]}"))
     }
 
     fun call(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
@@ -41,8 +41,13 @@ object Tools {
                     val args = if (argsVal != null) argsVal!!.asObject() else Map<String, JsonValue>()
                     val call = McpCall(builder, tool.name, args)
                     tool.handler(call)
-                    conn.writeResponse(200, "application/json",
-                        rpc.response("\"" + jsonEscape(call.result) + "\""))
+                    if (call.errorMessage != "") {
+                        conn.writeResponse(200, "application/json",
+                            rpc.response("{\"content\":[{\"type\":\"text\",\"text\":\"" + jsonEscape(call.errorMessage) + "\"}],\"isError\":true}"))
+                    } else {
+                        conn.writeResponse(200, "application/json",
+                            rpc.response("{\"content\":[{\"type\":\"text\",\"text\":\"" + jsonEscape(call.result) + "\"}]}"))
+                    }
                     return
                 }
             }

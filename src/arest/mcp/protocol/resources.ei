@@ -25,7 +25,7 @@ object Resources {
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json", rpc.response(out + "]"))
+        conn.writeResponse(200, "application/json", rpc.response(out + "]}"))
     }
 
     fun read(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
