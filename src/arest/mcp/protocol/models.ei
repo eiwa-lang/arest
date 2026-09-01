@@ -1,0 +1,49 @@
+import { Json } from "std.json"
+import { SerdeField, SerdeString, SerdeObject } from "std.serde"
+import { List, MutableList } from "std.collections"
+
+type McpEmptyObject() : Serializable + Json
+
+type McpInputSchema(val t: String, val properties: McpEmptyObject) : Serializable + Json {
+    implement fun serdeFields(): List<SerdeField> {
+        val fields = MutableList<SerdeField>()
+        fields.add(SerdeField("type", SerdeString(this.t)))
+        fields.add(SerdeField("properties", SerdeObject(this.properties)))
+        return fields.freeze()
+    }
+}
+
+type McpToolEntry(val name: String, val inputSchema: McpInputSchema) : Serializable + Json
+
+type McpToolsResult(val tools: List<McpToolEntry>) : Serializable + Json
+
+type McpTextContent(val t: String, val text: String) : Serializable + Json {
+    implement fun serdeFields(): List<SerdeField> {
+        val fields = MutableList<SerdeField>()
+        fields.add(SerdeField("type", SerdeString(this.t)))
+        fields.add(SerdeField("text", SerdeString(this.text)))
+        return fields.freeze()
+    }
+}
+
+type McpCallResult(val content: List<McpTextContent>, val isError: Bool) : Serializable + Json
+
+type McpResourceEntry(val uri: String, val name: String) : Serializable + Json
+
+type McpResourcesResult(val resources: List<McpResourceEntry>) : Serializable + Json
+
+type McpResourceContent(val uri: String, val text: String) : Serializable + Json
+
+type McpReadResourceResult(val contents: List<McpResourceContent>) : Serializable + Json
+
+type McpPromptEntry(val name: String) : Serializable + Json
+
+type McpPromptsResult(val prompts: List<McpPromptEntry>) : Serializable + Json
+
+type McpGetPromptResult(val description: String, val messages: List<String>) : Serializable + Json
+
+type McpCapabilities(val tools: McpEmptyObject, val resources: McpEmptyObject, val prompts: McpEmptyObject) : Serializable + Json
+
+type McpServerInfo(val name: String, val version: String) : Serializable + Json
+
+type McpInitializeResult(val protocolVersion: String, val capabilities: McpCapabilities, val serverInfo: McpServerInfo) : Serializable + Json

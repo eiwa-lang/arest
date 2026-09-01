@@ -2,29 +2,28 @@ import { ServerConnection } from "std.http"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
+import { JsonValue } from "std.json"
+import { MutableList } from "std.collections"
 import { McpPrompt } from ".arest.mcp.mcp_builder"
 import { McpCall } from ".arest.mcp.mcp_call"
+import { McpPromptEntry, McpPromptsResult, McpGetPromptResult } from ".arest.mcp.protocol.models"
 
 object Prompts {
 
     fun list(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
-        var out = "{\"prompts\":["
-        var count = 0
+        val promptsList = MutableList<McpPromptEntry>()
         var i = 0
         val prompts = builder.mcpBuilder.prompts
         while (i < prompts.size()) {
             val item = prompts.get(i)
             if (item is McpPrompt) {
                 val prompt = item
-                if (count > 0) {
-                    out = out + ","
-                }
-                out = out + "{\"name\":\"" + prompt.name + "\"}"
-                count = count + 1
+                promptsList.add(McpPromptEntry(prompt.name))
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json", rpc.response(out + "]}"))
+        val result = McpPromptsResult(promptsList.freeze())
+        conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
     }
 
     fun get(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
@@ -38,8 +37,9 @@ object Prompts {
                 if (prompt.name == name) {
                     val call = McpCall(builder, prompt.name, rpc.params.asObject())
                     prompt.handler(call)
-                    conn.writeResponse(200, "application/json",
-                        rpc.response("{\n    \"description\": \"" + call.result + "\",\n    \"messages\": []\n  }"))
+
+                    val result = McpGetPromptResult(call.result, MutableList<String>().freeze())
+                    conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
                     return
                 }
             }

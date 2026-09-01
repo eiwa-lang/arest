@@ -2,6 +2,7 @@ import { ServerConnection, Request } from "std.http"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
+import { JsonValue } from "std.json"
 import { Initialize } from ".arest.mcp.protocol.initialize"
 import { Tools } from ".arest.mcp.protocol.tools"
 import { Resources } from ".arest.mcp.protocol.resources"
@@ -11,8 +12,9 @@ type McpDispatcher(val builder: ArestBuilder) {
 
     fun dispatch(conn: ServerConnection, req: Request) {
         if (req.method != "POST") {
+            val emptyRpc = JsonRpc(JsonValue(), "", JsonValue())
             conn.writeResponse(405, "application/json",
-                "{\n  \"jsonrpc\": \"2.0\",\n  \"error\": {\n    \"code\": -32600,\n    \"message\": \"Method Not Allowed\"\n  }\n}")
+                emptyRpc.errorResponse(-32600, "Method Not Allowed"))
             return
         }
 

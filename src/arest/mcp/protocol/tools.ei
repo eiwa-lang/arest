@@ -2,30 +2,28 @@ import { ServerConnection } from "std.http"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
-import { JsonValue, jsonEscape } from "std.json"
+import { JsonValue } from "std.json"
+import { MutableList } from "std.collections"
 import { McpTool } from ".arest.mcp.mcp_builder"
 import { McpCall } from ".arest.mcp.mcp_call"
+import { McpToolEntry, McpInputSchema, McpEmptyObject, McpToolsResult, McpTextContent, McpCallResult } from ".arest.mcp.protocol.models"
 
 object Tools {
 
     fun list(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
-        var out = "{\"tools\":["
-        var count = 0
+        val toolsList = MutableList<McpToolEntry>()
         var i = 0
         val tools = builder.mcpBuilder.tools
         while (i < tools.size()) {
             val item = tools.get(i)
             if (item is McpTool) {
                 val tool = item
-                if (count > 0) {
-                    out = out + ","
-                }
-                out = out + "{\"name\":\"" + tool.name + "\",\"inputSchema\":{\"type\":\"object\",\"properties\":{}}}"
-                count = count + 1
+                toolsList.add(McpToolEntry(tool.name, McpInputSchema("object", McpEmptyObject())))
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json", rpc.response(out + "]}"))
+        val result = McpToolsResult(toolsList.freeze())
+        conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
     }
 
     fun call(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
@@ -41,13 +39,12 @@ object Tools {
                     val args = if (argsVal != null) argsVal!!.asObject() else Map<String, JsonValue>()
                     val call = McpCall(builder, tool.name, args)
                     tool.handler(call)
-                    if (call.errorMessage != "") {
-                        conn.writeResponse(200, "application/json",
-                            rpc.response("{\"content\":[{\"type\":\"text\",\"text\":\"" + jsonEscape(call.errorMessage) + "\"}],\"isError\":true}"))
-                    } else {
-                        conn.writeResponse(200, "application/json",
-                            rpc.response("{\"content\":[{\"type\":\"text\",\"text\":\"" + jsonEscape(call.result) + "\"}]}"))
-                    }
+
+                    val text = McpTextContent("text", if (call.errorMessage != "") call.errorMessage else call.result)
+                    val content = MutableList<McpTextContent>()
+                    content.add(text)
+                    val result = McpCallResult(content.freeze(), call.errorMessage != "")
+                    conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
                     return
                 }
             }

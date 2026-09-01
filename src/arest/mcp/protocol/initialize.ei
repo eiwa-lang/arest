@@ -2,23 +2,17 @@ import { ServerConnection } from "std.http"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
+import { McpCapabilities, McpEmptyObject, McpServerInfo, McpInitializeResult } from ".arest.mcp.protocol.models"
 
 object Initialize {
 
     fun execute(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
         val cfg = builder.mcpBuilder
-        val result = "{\n" +
-            "  \"protocolVersion\": \"2024-11-05\",\n" +
-            "  \"capabilities\": {\n" +
-            "    \"tools\": {},\n" +
-            "    \"resources\": {},\n" +
-            "    \"prompts\": {}\n" +
-            "  },\n" +
-            "  \"serverInfo\": {\n" +
-            "    \"name\": \"" + cfg.serverName + "\",\n" +
-            "    \"version\": \"" + cfg.serverVersion + "\"\n" +
-            "  }\n" +
-            "}"
-        conn.writeResponse(200, "application/json", rpc.response(result))
+
+        val capabilities = McpCapabilities(McpEmptyObject(), McpEmptyObject(), McpEmptyObject())
+        val serverInfo = McpServerInfo(cfg.serverName, cfg.serverVersion)
+        val result = McpInitializeResult("2024-11-05", capabilities, serverInfo)
+
+        conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
     }
 }

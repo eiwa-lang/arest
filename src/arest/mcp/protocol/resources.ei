@@ -2,30 +2,43 @@ import { ServerConnection } from "std.http"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
-import { jsonEscape } from "std.json"
+import { JsonValue } from "std.json"
+import { MutableList } from "std.collections"
 import { McpResource } from ".arest.mcp.mcp_builder"
 import { McpCall } from ".arest.mcp.mcp_call"
+import { McpResourceEntry, McpResourcesResult, McpResourceContent, McpReadResourceResult } from ".arest.mcp.protocol.models"
 
 object Resources {
 
+    fun resourceName(uri: String): String {
+        var lastSlash = -1
+        var i = 0
+        while (i < uri.length) {
+            if (uri.substring(i, i + 1) == "/") {
+                lastSlash = i
+            }
+            i = i + 1
+        }
+        if (lastSlash >= 0 && lastSlash + 1 < uri.length) {
+            return uri.substring(lastSlash + 1, uri.length)
+        }
+        return uri
+    }
+
     fun list(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
-        var out = "{\"resources\":["
-        var count = 0
+        val resourcesList = MutableList<McpResourceEntry>()
         var i = 0
         val resources = builder.mcpBuilder.resources
         while (i < resources.size()) {
             val item = resources.get(i)
             if (item is McpResource) {
                 val resource = item
-                if (count > 0) {
-                    out = out + ","
-                }
-                out = out + "{\"uri\":\"" + resource.uri + "\"}"
-                count = count + 1
+                resourcesList.add(McpResourceEntry(resource.uri, resourceName(resource.uri)))
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json", rpc.response(out + "]}"))
+        val result = McpResourcesResult(resourcesList.freeze())
+        conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
     }
 
     fun read(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
@@ -39,8 +52,12 @@ object Resources {
                 if (resource.uri == uri) {
                     val call = McpCall(builder, resource.uri, rpc.params.asObject())
                     resource.handler(call)
-                    val contents = "{\"contents\":[{\"uri\":\"" + jsonEscape(resource.uri) + "\",\"text\":\"" + jsonEscape(call.result) + "\"}]}"
-                    conn.writeResponse(200, "application/json", rpc.response(contents))
+
+                    val content = McpResourceContent(resource.uri, call.result)
+                    val contents = MutableList<McpResourceContent>()
+                    contents.add(content)
+                    val result = McpReadResourceResult(contents.freeze())
+                    conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
                     return
                 }
             }
