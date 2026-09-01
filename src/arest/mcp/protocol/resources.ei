@@ -37,7 +37,7 @@ object Resources {
             if (item is McpResource) {
                 val resource = item
                 if (resource.uri == uri) {
-                    val call = McpCall(builder, resource.uri, rpc.params)
+                    val call = McpCall(builder, resource.uri, rpc.params.asObject())
                     resource.handler(call)
                     val contents = "{\"contents\":[{\"uri\":\"" + jsonEscape(resource.uri) + "\",\"text\":\"" + jsonEscape(call.result) + "\"}]}"
                     conn.writeResponse(200, "application/json", rpc.response(contents))

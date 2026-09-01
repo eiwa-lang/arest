@@ -1,77 +1,29 @@
 import { JsonValue } from "std.json"
+import { Map } from "std.collections"
+import { Stringable } from "std.core"
 import { ArestBuilder } from ".arest.arest_builder"
 
 type McpCall(
     val server: ArestBuilder,
     val tool: String = "",
-    val arguments: JsonValue = JsonValue(),
+    val arguments: Map<String, JsonValue> = Map<String, JsonValue>(),
     var result: String = "",
     var errorMessage: String = ""
 ) {
 
-    fun respond(value: String): String {
-        this.result = value
-        return value
+    fun respond(value: Stringable): String {
+        val text = value.toString()
+        this.result = text
+        return text
     }
 
-    fun error(message: String): String {
-        this.errorMessage = message
-        return message
-    }
-
-    fun argument(name: String): JsonValue? {
-        return this.arguments.get(name)
-    }
-
-    fun argumentString(name: String): String {
-        val v = this.argument(name)
-        if (v == null) {
-            return ""
-        }
-        val node = v!!
-        if (node.isString()) {
-            return node.asString()
-        }
-        return ""
-    }
-
-    fun argumentInt(name: String): Int {
-        val v = this.argument(name)
-        if (v == null) {
-            return 0
-        }
-        val node = v!!
-        if (node.isNumber()) {
-            return node.asNumber().toInt()
-        }
-        return 0
-    }
-
-    fun argumentDouble(name: String): Double {
-        val v = this.argument(name)
-        if (v == null) {
-            return 0.0
-        }
-        val node = v!!
-        if (node.isNumber()) {
-            return node.asNumber()
-        }
-        return 0.0
-    }
-
-    fun argumentBool(name: String): Bool {
-        val v = this.argument(name)
-        if (v == null) {
-            return false
-        }
-        val node = v!!
-        if (node.isBool()) {
-            return node.asBool()
-        }
-        return false
+    fun error(message: Stringable): String {
+        val text = message.toString()
+        this.errorMessage = text
+        return text
     }
 
     fun hasArgument(name: String): Bool {
-        return this.arguments.get(name) != null
+        return this.arguments.containsKey(name)
     }
 }

@@ -19,14 +19,24 @@ type McpDispatcher(val builder: ArestBuilder) {
         val rpc = JsonRpc.parse(req.body)
         when (rpc.method) {
             "initialize" -> Initialize.execute(conn, rpc, builder)
+            "ping" -> conn.writeResponse(200, "application/json", rpc.response("{}"))
             "tools/list" -> Tools.list(conn, rpc, builder)
             "tools/call" -> Tools.call(conn, rpc, builder)
             "resources/list" -> Resources.list(conn, rpc, builder)
             "resources/read" -> Resources.read(conn, rpc, builder)
             "prompts/list" -> Prompts.list(conn, rpc, builder)
             "prompts/get" -> Prompts.get(conn, rpc, builder)
-            else -> conn.writeResponse(404, "application/json",
-                rpc.errorResponse(-32601, "Method not found"))
+            else -> {
+                if (rpc.method.startsWith("notifications/")) {
+                    // Notifications (notifications/initialized, notifications/cancelled, ...)
+                    // carry no JSON-RPC response. Acknowledge them with an empty 200 so
+                    // the client handshake completes instead of failing on "Method not found".
+                    conn.writeResponse(200, "application/json", "")
+                } else {
+                    conn.writeResponse(404, "application/json",
+                        rpc.errorResponse(-32601, "Method not found"))
+                }
+            }
         }
     }
 }

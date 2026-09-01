@@ -38,7 +38,7 @@ object Tools {
                 val tool = item
                 if (tool.name == name) {
                     val argsVal = rpc.params.get("arguments")
-                    val args = if (argsVal != null) argsVal!! else JsonValue()
+                    val args = if (argsVal != null) argsVal!!.asObject() else Map<String, JsonValue>()
                     val call = McpCall(builder, tool.name, args)
                     tool.handler(call)
                     conn.writeResponse(200, "application/json",

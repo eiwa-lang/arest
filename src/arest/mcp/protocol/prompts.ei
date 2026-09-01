@@ -36,7 +36,7 @@ object Prompts {
             if (item is McpPrompt) {
                 val prompt = item
                 if (prompt.name == name) {
-                    val call = McpCall(builder, prompt.name, rpc.params)
+                    val call = McpCall(builder, prompt.name, rpc.params.asObject())
                     prompt.handler(call)
                     conn.writeResponse(200, "application/json",
                         rpc.response("{\n    \"description\": \"" + call.result + "\",\n    \"messages\": []\n  }"))
