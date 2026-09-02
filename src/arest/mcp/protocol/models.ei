@@ -1,21 +1,8 @@
 import { Json } from "std.json"
-import { SerdeField, SerdeString, SerdeObject } from "std.serde"
+import { SerdeField, SerdeString } from "std.serde"
 import { List, MutableList } from "std.collections"
 
 type McpEmptyObject() : Serializable + Json
-
-type McpInputSchema(val t: String, val properties: McpEmptyObject) : Serializable + Json {
-    implement fun serdeFields(): List<SerdeField> {
-        val fields = MutableList<SerdeField>()
-        fields.add(SerdeField("type", SerdeString(this.t)))
-        fields.add(SerdeField("properties", SerdeObject(this.properties)))
-        return fields.freeze()
-    }
-}
-
-type McpToolEntry(val name: String, val inputSchema: McpInputSchema) : Serializable + Json
-
-type McpToolsResult(val tools: List<McpToolEntry>) : Serializable + Json
 
 type McpTextContent(val t: String, val text: String) : Serializable + Json {
     implement fun serdeFields(): List<SerdeField> {

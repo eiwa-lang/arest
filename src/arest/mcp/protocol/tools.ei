@@ -2,28 +2,59 @@ import { ServerConnection } from "std.http"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
-import { JsonValue } from "std.json"
-import { MutableList } from "std.collections"
-import { McpTool } from ".arest.mcp.mcp_builder"
+import { JsonValue, jsonObject, jsonArray, jsonString } from "std.json"
+import { MutableList, MutableMap } from "std.collections"
+import { McpTool, typeName } from ".arest.mcp.mcp_builder"
 import { McpCall } from ".arest.mcp.mcp_call"
-import { McpToolEntry, McpInputSchema, McpEmptyObject, McpToolsResult, McpTextContent, McpCallResult } from ".arest.mcp.protocol.models"
+import { McpTextContent, McpCallResult } from ".arest.mcp.protocol.models"
 
 object Tools {
 
     fun list(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
-        val toolsList = MutableList<McpToolEntry>()
+        val toolsJson = MutableList<JsonValue>()
         var i = 0
         val tools = builder.mcpBuilder.tools
         while (i < tools.size()) {
             val item = tools.get(i)
             if (item is McpTool) {
                 val tool = item
-                toolsList.add(McpToolEntry(tool.name, McpInputSchema("object", McpEmptyObject())))
+                val properties = MutableMap<String, JsonValue>()
+                val required = MutableList<JsonValue>()
+                var j = 0
+                while (j < tool.arguments.size()) {
+                    val argument = tool.arguments.get(j)
+                    val property = MutableMap<String, JsonValue>()
+                    property.put("type", jsonString(typeName(argument.t)))
+                    if (argument.description != "") {
+                        property.put("description", jsonString(argument.description))
+                    }
+                    properties.put(argument.name, jsonObject(property.freeze()))
+                    if (argument.required) {
+                        required.add(jsonString(argument.name))
+                    }
+                    j = j + 1
+                }
+
+                val schema = MutableMap<String, JsonValue>()
+                schema.put("type", jsonString("object"))
+                schema.put("properties", jsonObject(properties.freeze()))
+                schema.put("required", jsonArray(required.freeze()))
+
+                val entry = MutableMap<String, JsonValue>()
+                entry.put("name", jsonString(tool.name))
+                if (tool.description != "") {
+                    entry.put("description", jsonString(tool.description))
+                }
+                entry.put("inputSchema", jsonObject(schema.freeze()))
+
+                toolsJson.add(jsonObject(entry.freeze()))
             }
             i = i + 1
         }
-        val result = McpToolsResult(toolsList.freeze())
-        conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+
+        val result = MutableMap<String, JsonValue>()
+        result.put("tools", jsonArray(toolsJson.freeze()))
+        conn.writeResponse(200, "application/json", rpc.response(jsonObject(result.freeze()).write()))
     }
 
     fun call(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
