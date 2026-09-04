@@ -45,6 +45,6 @@ object Prompts {
             i = i + 1
         }
         conn.writeResponse(200, "application/json",
-            rpc.errorResponse(-32602, "Prompt not found: " + name))
+            rpc.errorResponse(-32602, "Prompt not found: $name"))
     }
 }

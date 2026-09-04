@@ -63,6 +63,6 @@ object Resources {
             i = i + 1
         }
         conn.writeResponse(200, "application/json",
-            rpc.errorResponse(-32602, "Resource not found: " + uri))
+            rpc.errorResponse(-32602, "Resource not found: $uri"))
     }
 }

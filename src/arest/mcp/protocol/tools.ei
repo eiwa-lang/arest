@@ -82,6 +82,6 @@ object Tools {
             i = i + 1
         }
         conn.writeResponse(200, "application/json",
-            rpc.errorResponse(-32602, "Tool not found: " + name))
+            rpc.errorResponse(-32602, "Tool not found: $name"))
     }
 }

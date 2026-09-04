@@ -11,7 +11,7 @@ fun arest(port: Int, init: ArestBuilder.() -> Void) {
     init(builder)
     val server = Server()
     if (server.bind(port)) {
-        Log.info { "[Arest] Server listening on http://localhost:" + port.toString() + " ..." }
+        Log.info { "[Arest] Server listening on http://localhost:$port ..." }
         val dispatcher = RequestDispatcher(builder, HttpDispatcher(builder), McpDispatcher(builder))
         while (builder.running) {
             try {
@@ -29,6 +29,6 @@ fun arest(port: Int, init: ArestBuilder.() -> Void) {
         server.close()
         Log.info { "[Arest] Server stopped gracefully." }
     } else {
-        Log.error { "[Arest] Failed to bind to port " + port.toString() }
+        Log.error { "[Arest] Failed to bind to port $port" }
     }
 }

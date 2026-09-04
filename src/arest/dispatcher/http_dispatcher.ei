@@ -19,7 +19,7 @@ type HttpDispatcher(val builder: ArestBuilder) {
                 val r = route
                 if (r.method == req.method && r.path == req.path) {
                     val call = ApplicationCall(conn, req, builder)
-                    Log.info { "[Arest] HTTP " + req.method + " " + req.path + " -> 200 OK" }
+                    Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
                     r.handler(call)
                     found = true
                 }
@@ -36,14 +36,14 @@ type HttpDispatcher(val builder: ArestBuilder) {
         }
 
         if (found == false) {
-            Log.warn { "[Arest] HTTP " + req.method + " " + req.path + " -> 404 Not Found" }
+            Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 404 Not Found" }
             conn.writeResponse(404, "text/plain", "Not Found")
         }
     }
 
     fun serveHealth(conn: ServerConnection, req: Request): Bool {
         if (builder.healthEnabled && req.method == "GET" && req.path == builder.healthPath) {
-            Log.info { "[Arest] HTTP GET " + builder.healthPath + " -> 200 OK" }
+            Log.info { "[Arest] HTTP GET ${builder.healthPath} -> 200 OK" }
             conn.writeResponse(200, "application/json", "{\"status\":\"ok\"}")
             return true
         }
@@ -67,12 +67,12 @@ type HttpDispatcher(val builder: ArestBuilder) {
                         if (File.exists(filePath)) {
                             val content = File.read(filePath)
                             val mime = Mime.headerValue(Mime.resolve(filePath))
-                            Log.info { "[Arest] HTTP GET " + req.path + " -> 200 OK" }
+                            Log.info { "[Arest] HTTP GET ${req.path} -> 200 OK" }
                             conn.writeResponse(200, mime, content)
                             return true
                         }
                     } else {
-                        Log.warn { "[Arest] HTTP GET " + req.path + " -> 403 Traversal Denied" }
+                        Log.warn { "[Arest] HTTP GET ${req.path} -> 403 Traversal Denied" }
                         conn.writeResponse(403, "text/plain", "Forbidden")
                         return true
                     }
@@ -84,6 +84,6 @@ type HttpDispatcher(val builder: ArestBuilder) {
     }
 
     fun buildPath(dir: String, rel: String): String {
-        return if (rel.startsWith("/")) dir + rel else dir + "/" + rel
+        return if (rel.startsWith("/")) dir + rel else "$dir/$rel"
     }
 }
