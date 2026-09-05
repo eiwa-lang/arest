@@ -10,15 +10,23 @@ fun arest(port: Int, init: ArestBuilder.() -> Void) {
     val builder = ArestBuilder(port)
     init(builder)
     val server = Server()
+    builder.server = server
     if (server.bind(port)) {
         Log.info { "[Arest] Server listening on http://localhost:$port ..." }
         val dispatcher = RequestDispatcher(builder, HttpDispatcher(builder), McpDispatcher(builder))
+        val disp = builder.workerDispatcher
         while (builder.running) {
             try {
                 val conn = server.accept()
-                if (conn is ServerConnection) {
-                    task {
-                        dispatcher.dispatch(conn)
+                if (builder.running) {
+                    if (conn is ServerConnection) {
+                        task(disp) {
+                            dispatcher.dispatch(conn)
+                        }
+                    }
+                } else {
+                    if (conn != null) {
+                        conn!!.close()
                     }
                 }
             } catch (e) {

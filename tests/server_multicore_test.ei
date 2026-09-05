@@ -1,0 +1,140 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { Dispatchers } from "std.coroutines"
+import { sleepMs } from "std.time"
+import { arest } from "arest.arest"
+import { arestClient } from "arest.client.client"
+import { CurlEngine } from "arest.client.engine.curl_engine"
+
+test "arest.server: multi-core server with Dispatchers.Default" {
+    val port = 19680
+    val serverThread = Threads.spawn {
+        arest(port) {
+            health()
+            routing {
+                get("/hello") {
+                    respondText("Hello Multi-Core")
+                }
+                get("/calc") {
+                    respondText("Result: 42")
+                }
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19680")
+    }
+
+    val resHello = client.get("/hello")
+    assert(resHello.ok, "GET /hello should succeed")
+    assert(resHello.status == 200)
+    assert(resHello.body() == "Hello Multi-Core")
+
+    val resCalc = client.get("/calc")
+    assert(resCalc.ok, "GET /calc should succeed")
+    assert(resCalc.status == 200)
+    assert(resCalc.body() == "Result: 42")
+
+    val resHealth = client.get("/health")
+    assert(resHealth.ok, "GET /health should succeed")
+    assert(resHealth.status == 200)
+    assert(resHealth.json().get("status")!!.asString() == "ok")
+
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    assert(resStop.body() == "bye")
+
+    serverThread.join()
+}
+
+test "arest.server: custom pool dispatcher" {
+    val customPool = Dispatchers.create("test-server-pool", 4)
+    val port = 19681
+    val serverThread = Threads.spawn {
+        arest(port) {
+            dispatcher(customPool)
+            routing {
+                get("/ping") {
+                    respondText("pong")
+                }
+                get("/stop") {
+                    respondText("stopped")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19681")
+    }
+
+    val resPing = client.get("/ping")
+    assert(resPing.ok)
+    assert(resPing.body() == "pong")
+
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    assert(resStop.body() == "stopped")
+
+    serverThread.join()
+    customPool.shutdown()
+    assert(customPool.isShutdown)
+}
+
+test "arest.server: parallel concurrent requests on Dispatchers.Default" {
+    val port = 19682
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/compute") {
+                    respondText("done")
+                }
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19682")
+    }
+
+    val t1 = Threads.spawn {
+        val r = client.get("/compute")
+        assert(r.ok && r.body() == "done")
+    }
+    val t2 = Threads.spawn {
+        val r = client.get("/compute")
+        assert(r.ok && r.body() == "done")
+    }
+    val t3 = Threads.spawn {
+        val r = client.get("/compute")
+        assert(r.ok && r.body() == "done")
+    }
+    val t4 = Threads.spawn {
+        val r = client.get("/compute")
+        assert(r.ok && r.body() == "done")
+    }
+
+    t1.join()
+    t2.join()
+    t3.join()
+    t4.join()
+
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+
+    serverThread.join()
+}
+
