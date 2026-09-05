@@ -1,5 +1,6 @@
 import { Server } from "std.http"
 import { Dispatchers, Dispatcher } from "std.coroutines"
+import { ContentNegotiation, JsonNegotiation } from ".arest.negotiation"
 import { RoutingBuilder } from ".arest.routing"
 import { McpBuilder } from ".arest.mcp.mcp_builder"
 
@@ -11,8 +12,13 @@ type ArestBuilder(
     val routingBuilder: RoutingBuilder = RoutingBuilder(),
     val mcpBuilder: McpBuilder = McpBuilder(),
     var workerDispatcher: Dispatcher = Dispatchers.Default,
-    var server: Server? = null
+    var server: Server? = null,
+    var negotiation: ContentNegotiation = JsonNegotiation()
 ) {
+
+    fun negotiation(neg: ContentNegotiation) {
+        this.negotiation = neg
+    }
 
     fun dispatcher(disp: Dispatcher) {
         this.workerDispatcher = disp

@@ -33,10 +33,11 @@ Aproveita a arquitetura de corrotinas com paralelismo real (Phase 69 do Eiwa).
 
 ---
 
-### Fase 2: Ergonomia do Servidor — Serde & Helpers no `ApplicationCall` (PENDENTE)
-- [ ] **Task 2.1 — `call.respondJson(value: Serializable)`:** Permitir passar diretamente instâncias com `: Serializable + Json` sem exigir `.toJson()` manual.
-- [ ] **Task 2.2 — `call.receive<T>()`:** Desserialização direta do corpo da requisição para tipos tipados usando o novo sistema `deserialize<T>` do `std.serde`.
-- [ ] **Task 2.3 — Request Helpers:** Métodos `call.header(name): String?`, `call.query(name): String?` e `call.queryOrDefault(name, default): String`.
+### Fase 2: Ergonomia do Servidor — Serde & Helpers no `ApplicationCall` (CONCLUÍDA)
+- [x] **Task 2.1 — `call.respond(value: Serializable)`:** Permitir passar diretamente instâncias com `: Serializable` sem exigir `.toJson()` manual ou acoplamento a JSON, usando `ContentNegotiation`.
+- [x] **Task 2.2 — `call.receive<T>()`:** Desserialização direta do corpo da requisição para tipos tipados usando o sistema `deserialize<T>` do `std.serde` via negociação.
+- [x] **Task 2.3 — Request Helpers:** Métodos `call.header(name): String?` (com fallback case-insensitive), `call.query(name): String?` e `call.queryOrDefault(name, default): String`.
+- [x] **Task 2.4 — Testes Automatizados:** Suíte `tests/server_serde_test.ei` validando round-trip completo de `respond(Serializable)` e `receive<T>()`.
 
 ---
 

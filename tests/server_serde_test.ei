@@ -1,0 +1,77 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { Serializable } from "std.serde"
+import { Json } from "std.json"
+import { arest } from "arest.arest"
+import { arestClient } from "arest.client.client"
+import { CurlEngine } from "arest.client.engine.curl_engine"
+
+type UserDto(val id: Int, val name: String) : Serializable + Json
+
+test "arest.server: respond(Serializable) and receive<T>()" {
+    val port = 19690
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/user") {
+                    val u = UserDto(101, "Alice")
+                    respond(u)
+                }
+
+                post("/echo_user") {
+                    val u = this.receive<UserDto>()
+                    respond(u, status = 201)
+                }
+
+                get("/search") {
+                    val q = queryOrDefault("q", "none")
+                    val auth = header("Authorization")
+                    val authStr = if (auth != null) auth!! else "anonymous"
+                    respondText("q=$q, auth=$authStr")
+                }
+
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19690")
+    }
+
+    // 1. Test GET with automatic server serialization and client deserialization
+    val resGet = client.get("/user")
+    assert(resGet.ok, "GET /user should succeed")
+    assert(resGet.status == 200)
+    assert(resGet.contentType() == "application/json")
+    val u1 = resGet.body<UserDto>()
+    assert(u1.id == 101)
+    assert(u1.name == "Alice")
+
+    // 2. Test POST with client serialization and server receive<T>() + respond(Serializable, 201)
+    val sendUser = UserDto(202, "Bob")
+    val resPost = client.post("/echo_user", sendUser)
+    assert(resPost.ok, "POST /echo_user should succeed")
+    assert(resPost.status == 201)
+    assert(resPost.contentType() == "application/json")
+    val u2 = resPost.body<UserDto>()
+    assert(u2.id == 202)
+    assert(u2.name == "Bob")
+
+    // 3. Test query params and header helpers (including case-insensitive header)
+    val resSearch = client.get("/search?q=eiwa_lang") {
+        header("authorization", "Bearer my-secret-token")
+    }
+    assert(resSearch.ok)
+    assert(resSearch.body() == "q=eiwa_lang, auth=Bearer my-secret-token")
+
+    // Stop server
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    serverThread.join()
+}

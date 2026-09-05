@@ -1,0 +1,81 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { arest } from "arest.arest"
+import { arestClient } from "arest.client.client"
+import { CurlEngine } from "arest.client.engine.curl_engine"
+
+test "arest.server: path parameters" {
+    val port = 19700
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                // Static route — takes priority over /:id
+                get("/users/me") {
+                    respondText("current-user")
+                }
+
+                // Single param
+                get("/users/:id") {
+                    val id = pathParam("id")
+                    val idStr = if (id != null) id!! else "missing"
+                    respondText("user-$idStr")
+                }
+
+                // Two params
+                get("/users/:userId/posts/:postId") {
+                    val uid = pathParam("userId")
+                    val pid = pathParam("postId")
+                    val uidStr = if (uid != null) uid!! else "missing"
+                    val pidStr = if (pid != null) pid!! else "missing"
+                    respondText("$uidStr/$pidStr")
+                }
+
+                // Curly-brace style param
+                get("/items/{sku}") {
+                    val sku = pathParam("sku")
+                    val skuStr = if (sku != null) sku!! else "missing"
+                    respondText("item-$skuStr")
+                }
+
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19700")
+    }
+
+    // 1. Static route wins over /:id
+    val resMe = client.get("/users/me")
+    assert(resMe.ok, "GET /users/me should match static route")
+    assert(resMe.body() == "current-user")
+
+    // 2. Single path param
+    val resUser = client.get("/users/42")
+    assert(resUser.ok, "GET /users/:id should match")
+    assert(resUser.body() == "user-42")
+
+    // 3. Multi-segment params
+    val resPost = client.get("/users/7/posts/99")
+    assert(resPost.ok, "GET /users/:userId/posts/:postId should match")
+    assert(resPost.body() == "7/99")
+
+    // 4. Curly-brace style
+    val resItem = client.get("/items/EI-9000")
+    assert(resItem.ok, "GET /items/{sku} should match")
+    assert(resItem.body() == "item-EI-9000")
+
+    // 5. No match -> 404
+    val res404 = client.get("/unknown/path")
+    assert(res404.status == 404, "Unknown path should be 404")
+
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    serverThread.join()
+}

@@ -4,27 +4,20 @@ import { File } from "std.fs"
 
 import { ArestBuilder } from ".arest.arest_builder"
 import { ApplicationCall } from ".arest.application_call"
-import { Route, StaticConfig } from ".arest.routing"
+import { RouteMatch, StaticConfig } from ".arest.routing"
 import { Mime, MimeType } from ".arest.mime"
 
 type HttpDispatcher(val builder: ArestBuilder) {
 
     fun dispatch(conn: ServerConnection, req: Request) {
         var found = false
-        var i = 0
-        val routes = builder.routingBuilder.routes
-        while (i < routes.size()) {
-            val route = routes.get(i)
-            if (route is Route) {
-                val r = route
-                if (r.method == req.method && r.path == req.path) {
-                    val call = ApplicationCall(conn, req, builder)
-                    Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
-                    r.handler(call)
-                    found = true
-                }
-            }
-            i = i + 1
+        val match = builder.routingBuilder.match(req.method, req.path)
+        if (match is RouteMatch) {
+            val m = match!!
+            val call = ApplicationCall(conn, req, builder, m.pathParams)
+            Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
+            m.route.handler(call)
+            found = true
         }
 
         if (found == false && req.method == "GET") {

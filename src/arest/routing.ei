@@ -1,6 +1,14 @@
+import { MutableMap } from "std.collections"
+
+// Holds the matched route together with the extracted path parameters.
+type RouteMatch(
+    val route: Route,
+    val pathParams: MutableMap<String, String>
+)
+
 type Route(
     val method: String,
-    val path: String,
+    val pattern: String,
     val handler: ApplicationCall.() -> Void
 )
 
@@ -40,6 +48,90 @@ type RoutingBuilder(
 
     fun options(path: String, handler: ApplicationCall.() -> Void) {
         routes.add(Route("OPTIONS", path, handler))
+    }
+
+    // Returns a RouteMatch if the given method+path matches this route list,
+    // preferring exact (static) routes over parametric ones.
+    fun match(method: String, path: String): RouteMatch? {
+        var parametric: RouteMatch? = null
+        var i = 0
+        while (i < routes.size()) {
+            val r = routes.get(i)
+            if (r is Route) {
+                val route = r
+                if (route.method == method) {
+                    val params = matchPattern(route.pattern, path)
+                    if (params != null) {
+                        val isExact = route.pattern == path
+                        if (isExact) {
+                            return RouteMatch(route, params!!)
+                        }
+                        if (parametric == null) {
+                            parametric = RouteMatch(route, params!!)
+                        }
+                    }
+                }
+            }
+            i = i + 1
+        }
+        return parametric
+    }
+
+    // Matches a pattern like "/users/:id/posts/:postId" against a concrete path.
+    // Returns a filled MutableMap on success, null on mismatch.
+    fun matchPattern(pattern: String, path: String): MutableMap<String, String>? {
+        val params = MutableMap<String, String>()
+        val pSegs = splitPath(pattern)
+        val uSegs = splitPath(path)
+        if (pSegs.size() != uSegs.size()) {
+            return null
+        }
+        var i = 0
+        while (i < pSegs.size()) {
+            val ps = pSegs.get(i)
+            val us = uSegs.get(i)
+            if (ps is String && us is String) {
+                val p = ps!!
+                val u = us!!
+                if (p.startsWith(":")) {
+                    val name = p.substring(1, p.length)
+                    params.put(name, u)
+                } else if (p.startsWith("{") && p.endsWith("}")) {
+                    val name = p.substring(1, p.length - 1)
+                    params.put(name, u)
+                } else if (p != u) {
+                    return null
+                }
+            }
+            i = i + 1
+        }
+        return params
+    }
+
+    // Splits "/a/b/c" into ["a", "b", "c"], stripping leading slash.
+    fun splitPath(path: String): MutableList<String?> {
+        val segs = MutableList<String?>()
+        var start = 0
+        var i = 0
+        val p = if (path.startsWith("/")) path.substring(1, path.length) else path
+        while (i <= p.length) {
+            if (i == p.length) {
+                if (i > start) {
+                    segs.add(p.substring(start, i))
+                }
+                i = i + 1
+            } else {
+                val c = p.charAt(i)
+                if (c == "/") {
+                    segs.add(p.substring(start, i))
+                    start = i + 1
+                    i = i + 1
+                } else {
+                    i = i + 1
+                }
+            }
+        }
+        return segs
     }
 
     fun static(prefix: String, dir: String) {

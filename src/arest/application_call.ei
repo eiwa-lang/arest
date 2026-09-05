@@ -1,25 +1,99 @@
 import { ServerConnection, Request } from "std.http"
+import { Serializable } from "std.serde"
+import { NativeMemory } from "std.core"
+import { MutableMap } from "std.collections"
 import { ArestBuilder } from ".arest.arest_builder"
 
 type ApplicationCall(
     val conn: ServerConnection,
     val request: Request,
-    val server: ArestBuilder
+    val server: ArestBuilder,
+    val pathParams: MutableMap<String, String> = MutableMap<String, String>()
 ) {
 
-    fun respond(status: Int, contentType: String, body: String) {
+    fun respond(body: String, status: Int, contentType: String) {
         conn.writeResponse(status, contentType, body)
     }
 
+    fun respond(value: Serializable, status: Int = 200) {
+        val body = this.server.negotiation.serialize(value)
+        this.respond(body, status, this.server.negotiation.contentType())
+    }
+
+    fun <T> receive(): T {
+        val serdeVal = this.server.negotiation.deserialize(this.request.body)
+        return T.deserialize(serdeVal)
+    }
+
     fun respondText(body: String, status: Int = 200) {
-        respond(status, "text/plain", body)
+        this.respond(body, status, "text/plain")
     }
 
     fun respondHtml(body: String, status: Int = 200) {
-        respond(status, "text/html", body)
+        this.respond(body, status, "text/html")
     }
 
     fun respondJson(body: String, status: Int = 200) {
-        respond(status, "application/json", body)
+        this.respond(body, status, "application/json")
+    }
+
+    fun header(name: String): String? {
+        val direct = this.request.headers.get(name)
+        if (direct != null) {
+            return direct
+        }
+        var i = 0
+        val entries = this.request.headers.entries
+        while (i < entries.size()) {
+            var curr = entries.get(i)
+            while (curr != null) {
+                if (this.iequals(curr!!.key, name)) {
+                    return curr!!.value
+                }
+                curr = curr!!.next
+            }
+            i = i + 1
+        }
+        return null
+    }
+
+    fun query(name: String): String? {
+        return this.request.queries.get(name)
+    }
+
+    fun queryOrDefault(name: String, defaultVal: String): String {
+        val v = this.request.queries.get(name)
+        if (v != null) {
+            return v!!
+        }
+        return defaultVal
+    }
+
+    // Returns the value of a path parameter extracted by the router.
+    // e.g. for pattern "/users/:id" matched against "/users/42" -> pathParam("id") == "42"
+    fun pathParam(name: String): String? {
+        return this.pathParams.get(name)
+    }
+
+    fun iequals(a: String, b: String): Bool {
+        if (a.length != b.length) {
+            return false
+        }
+        var i = 0
+        while (i < a.length) {
+            var ca = NativeMemory.readByte(a.ptr!!, i)
+            var cb = NativeMemory.readByte(b.ptr!!, i)
+            if (ca >= 65 && ca <= 90) {
+                ca = ca + 32
+            }
+            if (cb >= 65 && cb <= 90) {
+                cb = cb + 32
+            }
+            if (ca != cb) {
+                return false
+            }
+            i = i + 1
+        }
+        return true
     }
 }
