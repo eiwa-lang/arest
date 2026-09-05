@@ -38,6 +38,8 @@ test "arest.client: curl engine real http get with local server" {
 
     assert(res.ok)
     assert(res.status == 200)
+    assert(res.contentType() == "application/json")
+    assert(res.header("Content-Length") == "36")
     assert(res.body().indexOf("Hello from CurlEngine!") >= 0)
 
     val json = res.json()
