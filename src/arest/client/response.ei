@@ -1,0 +1,38 @@
+import { Map } from "std.collections"
+import { parseJson, JsonValue } from "std.json"
+
+type HttpResponse(
+    val status: Int,
+    val rawBody: String,
+    val headers: Map<String, String> = Map<String, String>(),
+    val ok: Bool = status >= 200 && status < 300,
+    val isClientError: Bool = status >= 400 && status < 500,
+    val isServerError: Bool = status >= 500 && status < 600,
+    val isNotFound: Bool = status == 404,
+    val isUnauthorized: Bool = status == 401,
+    val isForbidden: Bool = status == 403
+) {
+
+    fun text(): String = this.rawBody
+    fun body(): String = this.rawBody
+
+    fun json(): JsonValue {
+        return parseJson(this.rawBody)
+    }
+
+    fun header(name: String): String? {
+        return this.headers.get(name)
+    }
+
+    fun headerOrDefault(name: String, defaultVal: String): String {
+        val h = this.header(name)
+        if (h != null) {
+            return h!!
+        }
+        return defaultVal
+    }
+
+    fun contentType(): String? {
+        return this.header("Content-Type")
+    }
+}

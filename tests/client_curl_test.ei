@@ -1,0 +1,79 @@
+import { assert } from "std.core"
+import { TCPServer, Socket } from "std.net"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { Serializable } from "std.serde"
+import { Json } from "std.json"
+import { ArestClient, arestClient } from "arest.client.client"
+import { CurlEngine } from "arest.client.engine.curl_engine"
+
+type EchoPayload(val greeting: String, val count: Int) : Serializable + Json
+
+test "arest.client: curl engine real http get with local server" {
+    val server = TCPServer()
+    val bound = server.bind(19572)
+    assert(bound, "local test server should bind")
+
+    val serverThread = Threads.spawn {
+        val client = server.accept()
+        if (client != null) {
+            val s: Socket = client!!
+            val rawReq = s.read(1024)
+            val body = "{\"message\": \"Hello from CurlEngine!\"}"
+            val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 36\r\nConnection: close\r\n\r\n" + body
+            s.write(resp)
+            s.close()
+        }
+        server.close()
+    }
+
+    sleepMs(50)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19572")
+        header("X-Arest-Test", "1")
+    }
+
+    val res = client.get("/hello")
+    serverThread.join()
+
+    assert(res.ok)
+    assert(res.status == 200)
+    assert(res.body().indexOf("Hello from CurlEngine!") >= 0)
+
+    val json = res.json()
+    assert(json.get("message")!!.asString() == "Hello from CurlEngine!")
+}
+
+test "arest.client: curl engine real http post with json payload" {
+    val server = TCPServer()
+    val bound = server.bind(19573)
+    assert(bound, "local post server should bind")
+
+    val serverThread = Threads.spawn {
+        val client = server.accept()
+        if (client != null) {
+            val s: Socket = client!!
+            val rawReq = s.read(2048)
+            val body = "{\"status\": \"received\"}"
+            val resp = "HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nContent-Length: 22\r\nConnection: close\r\n\r\n" + body
+            s.write(resp)
+            s.close()
+        }
+        server.close()
+    }
+
+    sleepMs(50)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19573")
+    }
+
+    val payload = EchoPayload("Hello Server", 42)
+    val res = client.post("/echo", payload)
+    serverThread.join()
+
+    assert(res.ok)
+    assert(res.status == 201)
+
+    val json = res.json()
+    assert(json.get("status")!!.asString() == "received")
+}

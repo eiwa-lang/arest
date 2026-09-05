@@ -1,0 +1,181 @@
+import { assert } from "std.core"
+import { MutableMap } from "std.collections"
+import { Serializable } from "std.serde"
+import { Json } from "std.json"
+import { ArestClient, arestClient } from "arest.client.client"
+import { MockEngine } from "arest.client.engine.mock_engine"
+
+type UserDto(val id: Int, val name: String, val email: String) : Serializable + Json
+
+test "arest.client: mock engine basic get and response parsing" {
+    val mock = MockEngine()
+    mock.on("GET", "/users/1")
+        .reply(200, "{\"id\": 1, \"name\": \"Leo\", \"email\": \"leo@eiwa.dev\"}")
+
+    val client = arestClient(mock) {
+        baseUrl("https://api.myapp.com")
+    }
+
+    val res = client.get("/users/1")
+
+    assert(res.ok)
+    assert(res.status == 200)
+    assert(res.isNotFound == false)
+
+    val json = res.json()
+    assert(json.get("name")!!.asString() == "Leo")
+    assert(json.get("email")!!.asString() == "leo@eiwa.dev")
+    assert(json.get("id")!!.asNumber() == 1.0)
+    assert(mock.callCount() == 1)
+}
+
+test "arest.client: query parameters and headers builder" {
+    val mock = MockEngine()
+    mock.on("GET", "/search")
+        .reply(200, "{\"results\": 42}")
+
+    val client = arestClient(mock) {
+        baseUrl("https://api.myapp.com")
+        header("X-Client", "Arest/0.1")
+        bearerAuth("jwt-token-xyz")
+    }
+
+    val res = client.get("/search") {
+        query("q", "eiwa")
+        query("limit", 10)
+        header("X-Custom", "value123")
+    }
+
+    assert(res.ok)
+    assert(mock.callCount() == 1)
+
+    val req = mock.lastRequest()!!
+    assert(req.url.indexOf("/search?") >= 0)
+    assert(req.url.indexOf("q=eiwa") >= 0)
+    assert(req.url.indexOf("limit=10") >= 0)
+    assert(req.headers.get("X-Client") == "Arest/0.1")
+    assert(req.headers.get("Authorization") == "Bearer jwt-token-xyz")
+    assert(req.headers.get("X-Custom") == "value123")
+}
+
+test "arest.client: post with automatic serialization from Json skill" {
+    val mock = MockEngine()
+    mock.on("POST", "/users")
+        .reply(201, "{\"id\": 99, \"status\": \"created\"}")
+
+    val client = arestClient(mock) {
+        baseUrl("https://api.myapp.com")
+    }
+
+    val newUser = UserDto(0, "Ana", "ana@eiwa.dev")
+    val res = client.post("/users", newUser)
+
+    assert(res.ok)
+    assert(res.status == 201)
+
+    val req = mock.lastRequest()!!
+    assert(req.method == "POST")
+    assert(req.headers.get("Content-Type") == "application/json")
+    assert(req.body.indexOf("\"name\": \"Ana\"") >= 0)
+    assert(req.body.indexOf("\"email\": \"ana@eiwa.dev\"") >= 0)
+}
+
+test "arest.client: post with fluent builder and body" {
+    val mock = MockEngine()
+    mock.on("POST", "/users")
+        .reply(200, "{\"ok\": true}")
+
+    val client = arestClient(mock)
+
+    val newUser = UserDto(12, "Carlos", "carlos@eiwa.dev")
+    val res = client.post("https://api.myapp.com/users") {
+        header("X-Request-ID", "req-123")
+        body(newUser)
+    }
+
+    assert(res.ok)
+    val req = mock.lastRequest()!!
+    assert(req.headers.get("X-Request-ID") == "req-123")
+    assert(req.body.indexOf("\"name\": \"Carlos\"") >= 0)
+}
+
+test "arest.client: status code predicates" {
+    val mock = MockEngine()
+    mock.on("GET", "/missing").reply(404, "Not Found")
+    mock.on("GET", "/secret").reply(401, "Unauthorized")
+    mock.on("GET", "/locked").reply(403, "Forbidden")
+    mock.on("GET", "/broken").reply(500, "Server Error")
+
+    val client = arestClient(mock)
+
+    val r404 = client.get("/missing")
+    assert(r404.ok == false)
+    assert(r404.isNotFound)
+    assert(r404.isClientError)
+
+    val r401 = client.get("/secret")
+    assert(r401.isUnauthorized)
+    assert(r401.isClientError)
+
+    val r403 = client.get("/locked")
+    assert(r403.isForbidden)
+    assert(r403.isClientError)
+
+    val r500 = client.get("/broken")
+    assert(r500.isServerError)
+    assert(r500.isClientError == false)
+}
+
+test "arest.client: put and patch with serializable body" {
+    val mock = MockEngine()
+    mock.on("PUT", "/users/10").reply(200, "{\"status\": \"updated\"}")
+    mock.on("PATCH", "/users/10").reply(200, "{\"status\": \"patched\"}")
+
+    val client = arestClient(mock)
+    val user = UserDto(10, "Updated", "up@eiwa.dev")
+
+    val resPut = client.put("/users/10", user)
+    assert(resPut.ok)
+    val reqPut = mock.lastRequest()!!
+    assert(reqPut.method == "PUT")
+    assert(reqPut.body.indexOf("\"name\": \"Updated\"") >= 0)
+
+    val resPatch = client.patch("/users/10", user)
+    assert(resPatch.ok)
+    val reqPatch = mock.lastRequest()!!
+    assert(reqPatch.method == "PATCH")
+    assert(reqPatch.body.indexOf("\"name\": \"Updated\"") >= 0)
+}
+
+test "arest.client: delete and head methods" {
+    val mock = MockEngine()
+    mock.on("DELETE", "/users/10").reply(204, "")
+    mock.on("HEAD", "/users/10").reply(200, "")
+
+    val client = arestClient(mock)
+
+    val resDel = client.delete("/users/10")
+    assert(resDel.status == 204)
+    assert(mock.lastRequest()!!.method == "DELETE")
+
+    val resHead = client.head("/users/10")
+    assert(resHead.status == 200)
+    assert(mock.lastRequest()!!.method == "HEAD")
+}
+
+test "arest.client: response header helpers" {
+    val mock = MockEngine()
+    val headers: MutableMap<String, String> = MutableMap()
+    headers.put("Content-Type", "application/json; charset=utf-8")
+    headers.put("X-Custom-Token", "secret-token-xyz")
+    mock.on("GET", "/info").reply(200, "{\"version\": \"1.0\"}", headers.freeze())
+
+    val client = arestClient(mock)
+    val res = client.get("/info")
+
+    assert(res.ok)
+    assert(res.header("X-Custom-Token") == "secret-token-xyz")
+    assert(res.headerOrDefault("X-Custom-Token", "default") == "secret-token-xyz")
+    assert(res.headerOrDefault("X-Missing", "fallback-val") == "fallback-val")
+    assert(res.contentType() == "application/json; charset=utf-8")
+}

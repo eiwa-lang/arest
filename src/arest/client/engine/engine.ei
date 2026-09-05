@@ -1,0 +1,6 @@
+import { HttpRequest } from ".arest.client.request"
+import { HttpResponse } from ".arest.client.response"
+
+contract HttpEngine {
+    fun execute(request: HttpRequest): HttpResponse
+}

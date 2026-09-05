@@ -1,0 +1,186 @@
+import { MutableMap } from "std.collections"
+import { Serializable } from "std.serde"
+import { HttpRequest, RequestBuilder } from ".arest.client.request"
+import { HttpResponse } from ".arest.client.response"
+import { ContentNegotiation, JsonNegotiation } from ".arest.client.negotiation"
+import { HttpEngine } from ".arest.client.engine.engine"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+
+type ClientConfig(
+    var baseUrl: String = "",
+    var timeoutMs: Int = 15000,
+    var engine: HttpEngine = CurlEngine(),
+    var negotiation: ContentNegotiation = JsonNegotiation(),
+    val defaultHeaders: MutableMap<String, String> = MutableMap<String, String>()
+) {
+    fun baseUrl(url: String): ClientConfig {
+        this.baseUrl = url
+        return this
+    }
+
+    fun header(name: String, value: String): ClientConfig {
+        this.defaultHeaders.put(name, value)
+        return this
+    }
+
+    fun bearerAuth(token: String): ClientConfig {
+        this.header("Authorization", "Bearer $token")
+        return this
+    }
+
+    fun timeout(ms: Int): ClientConfig {
+        this.timeoutMs = ms
+        return this
+    }
+
+    fun engine(eng: HttpEngine): ClientConfig {
+        this.engine = eng
+        return this
+    }
+
+    fun negotiation(neg: ContentNegotiation): ClientConfig {
+        this.negotiation = neg
+        return this
+    }
+}
+
+type ArestClient(
+    val config: ClientConfig = ClientConfig()
+) {
+
+    fun send(builder: RequestBuilder): HttpResponse {
+        if (this.config.defaultHeaders.size() > 0) {
+            var i = 0
+            while (i < this.config.defaultHeaders.entries.size()) {
+                var curr = this.config.defaultHeaders.entries.get(i)
+                while (curr != null) {
+                    if (builder.headers.containsKey(curr!!.key) == false) {
+                        builder.header(curr!!.key, curr!!.value)
+                    }
+                    curr = curr!!.next
+                }
+                i = i + 1
+            }
+        }
+
+        if (builder.bodyContent != "" && builder.headers.containsKey("Content-Type") == false) {
+            builder.header("Content-Type", this.config.negotiation.contentType())
+        }
+        if (builder.headers.containsKey("Accept") == false) {
+            builder.header("Accept", this.config.negotiation.contentType())
+        }
+
+        if (builder.timeoutMs == 15000 && this.config.timeoutMs != 15000) {
+            builder.timeout(this.config.timeoutMs)
+        }
+
+        val req = builder.build(this.config.baseUrl)
+        val eng = this.config.engine
+        val res = eng.execute(req)
+        return res
+    }
+
+    fun get(path: String): HttpResponse {
+        val b = RequestBuilder("GET", path)
+        return this.send(b)
+    }
+
+    fun get(path: String, init: RequestBuilder.() -> Void): HttpResponse {
+        val b = RequestBuilder("GET", path)
+        init(b)
+        return this.send(b)
+    }
+
+    fun post(path: String, body: Serializable): HttpResponse {
+        val b = RequestBuilder("POST", path)
+        val serialized = this.config.negotiation.serialize(body)
+        b.body(serialized)
+        return this.send(b)
+    }
+
+    fun post(path: String): HttpResponse {
+        val b = RequestBuilder("POST", path)
+        return this.send(b)
+    }
+
+    fun post(path: String, init: RequestBuilder.() -> Void): HttpResponse {
+        val b = RequestBuilder("POST", path)
+        init(b)
+        return this.send(b)
+    }
+
+    fun put(path: String, body: Serializable): HttpResponse {
+        val b = RequestBuilder("PUT", path)
+        val serialized = this.config.negotiation.serialize(body)
+        b.body(serialized)
+        return this.send(b)
+    }
+
+    fun put(path: String): HttpResponse {
+        val b = RequestBuilder("PUT", path)
+        return this.send(b)
+    }
+
+    fun put(path: String, init: RequestBuilder.() -> Void): HttpResponse {
+        val b = RequestBuilder("PUT", path)
+        init(b)
+        return this.send(b)
+    }
+
+    fun patch(path: String, body: Serializable): HttpResponse {
+        val b = RequestBuilder("PATCH", path)
+        val serialized = this.config.negotiation.serialize(body)
+        b.body(serialized)
+        return this.send(b)
+    }
+
+    fun patch(path: String): HttpResponse {
+        val b = RequestBuilder("PATCH", path)
+        return this.send(b)
+    }
+
+    fun patch(path: String, init: RequestBuilder.() -> Void): HttpResponse {
+        val b = RequestBuilder("PATCH", path)
+        init(b)
+        return this.send(b)
+    }
+
+    fun delete(path: String): HttpResponse {
+        val b = RequestBuilder("DELETE", path)
+        return this.send(b)
+    }
+
+    fun delete(path: String, init: RequestBuilder.() -> Void): HttpResponse {
+        val b = RequestBuilder("DELETE", path)
+        init(b)
+        return this.send(b)
+    }
+
+    fun head(path: String): HttpResponse {
+        val b = RequestBuilder("HEAD", path)
+        return this.send(b)
+    }
+
+    fun head(path: String, init: RequestBuilder.() -> Void): HttpResponse {
+        val b = RequestBuilder("HEAD", path)
+        init(b)
+        return this.send(b)
+    }
+}
+
+fun arestClient(init: ClientConfig.() -> Void): ArestClient {
+    val cfg = ClientConfig()
+    init(cfg)
+    return ArestClient(cfg)
+}
+
+fun arestClient(engine: HttpEngine): ArestClient {
+    val cfg = ClientConfig(engine = engine)
+    return ArestClient(cfg)
+}
+
+fun arestClient(engine: HttpEngine, init: ClientConfig.() -> Void): ArestClient {
+    val cfg = ClientConfig(engine = engine)
+    init(cfg)
+    return ArestClient(cfg)
+}

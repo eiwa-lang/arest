@@ -1,0 +1,112 @@
+import { Map, MutableMap } from "std.collections"
+import { Serializable } from "std.serde"
+import { serializeJson } from "std.json"
+
+type HttpRequest(
+    val method: String,
+    val url: String,
+    val headers: Map<String, String>,
+    val queries: Map<String, String>,
+    val body: String,
+    val timeoutMs: Int
+)
+
+type RequestBuilder(
+    val method: String,
+    var url: String,
+    var bodyContent: String = "",
+    var timeoutMs: Int = 15000,
+    val headers: MutableMap<String, String> = MutableMap<String, String>(),
+    val queries: MutableMap<String, String> = MutableMap<String, String>()
+) {
+    fun header(name: String, value: String): RequestBuilder {
+        this.headers.put(name, value)
+        return this
+    }
+
+    fun query(name: String, value: String): RequestBuilder {
+        this.queries.put(name, value)
+        return this
+    }
+
+    fun query(name: String, value: Int): RequestBuilder {
+        this.queries.put(name, value.toString())
+        return this
+    }
+
+    fun query(name: String, value: Double): RequestBuilder {
+        this.queries.put(name, value.toString())
+        return this
+    }
+
+    fun query(name: String, value: Bool): RequestBuilder {
+        this.queries.put(name, value.toString())
+        return this
+    }
+
+    fun bearerAuth(token: String): RequestBuilder {
+        this.header("Authorization", "Bearer $token")
+        return this
+    }
+
+    fun basicAuth(user: String, pass: String): RequestBuilder {
+        this.header("Authorization", "Basic $user:$pass")
+        return this
+    }
+
+    fun timeout(ms: Int): RequestBuilder {
+        this.timeoutMs = ms
+        return this
+    }
+
+    fun body(raw: String): RequestBuilder {
+        this.bodyContent = raw
+        return this
+    }
+
+    fun body(payload: Serializable): RequestBuilder {
+        this.bodyContent = serializeJson(payload)
+        this.header("Content-Type", "application/json")
+        return this
+    }
+
+    fun build(baseUrl: String = ""): HttpRequest {
+        var fullUrl = this.url
+        if (baseUrl != "" && fullUrl.indexOf("http://") != 0 && fullUrl.indexOf("https://") != 0) {
+            val baseEndsSlash = baseUrl.substring(baseUrl.length - 1, baseUrl.length) == "/"
+            val pathStartsSlash = if (fullUrl.length > 0) fullUrl.substring(0, 1) == "/" else false
+            if (baseEndsSlash && pathStartsSlash) {
+                fullUrl = baseUrl + fullUrl.substring(1, fullUrl.length)
+            } else if (!baseEndsSlash && !pathStartsSlash) {
+                fullUrl = "$baseUrl/$fullUrl"
+            } else {
+                fullUrl = baseUrl + fullUrl
+            }
+        }
+
+        if (this.queries.size() > 0) {
+            var separator = if (fullUrl.indexOf("?") >= 0) "&" else "?"
+            var i = 0
+            while (i < this.queries.entries.size()) {
+                var curr = this.queries.entries.get(i)
+                while (curr != null) {
+                    val k = curr!!.key
+                    val v = curr!!.value
+                    fullUrl = "$fullUrl$separator$k=$v"
+                    separator = "&"
+                    curr = curr!!.next
+                }
+                i = i + 1
+            }
+        }
+
+        return HttpRequest(
+            this.method,
+            fullUrl,
+            this.headers.freeze(),
+            this.queries.freeze(),
+            this.bodyContent,
+            this.timeoutMs
+        )
+    }
+}

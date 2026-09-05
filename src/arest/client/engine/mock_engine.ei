@@ -1,0 +1,66 @@
+import { List, MutableList, Map } from "std.collections"
+import { HttpRequest } from ".arest.client.request"
+import { HttpResponse } from ".arest.client.response"
+import { HttpEngine } from ".arest.client.engine.engine"
+
+type MockResponse(
+    val status: Int,
+    val body: String,
+    val headers: Map<String, String> = Map<String, String>()
+)
+
+type MockRoute(
+    val method: String,
+    val path: String,
+    var response: MockResponse = MockResponse(200, "")
+) {
+    fun reply(status: Int, body: String = "", headers: Map<String, String> = Map<String, String>()): MockRoute {
+        this.response = MockResponse(status, body, headers)
+        return this
+    }
+}
+
+type MockEngine(
+    val routes: MutableList<MockRoute> = MutableList<MockRoute>(),
+    val sentRequests: MutableList<HttpRequest> = MutableList<HttpRequest>()
+) : HttpEngine {
+
+    fun on(method: String, path: String): MockRoute {
+        val route = MockRoute(method, path)
+        this.routes.add(route)
+        return route
+    }
+
+    fun callCount(): Int = this.sentRequests.size()
+
+    fun lastRequest(): HttpRequest? {
+        if (this.sentRequests.size() == 0) {
+            return null
+        }
+        return this.sentRequests.get(this.sentRequests.size() - 1)
+    }
+
+    implement fun execute(request: HttpRequest): HttpResponse {
+        this.sentRequests.add(request)
+
+        var i = 0
+        while (i < this.routes.size()) {
+            val r = this.routes.get(i)
+            val methodMatches = r.method == "*" || r.method == request.method
+            val urlMatches = request.url == r.path || request.url.indexOf(r.path) >= 0
+            if (methodMatches && urlMatches) {
+                return HttpResponse(
+                    r.response.status,
+                    r.response.body,
+                    r.response.headers
+                )
+            }
+            i = i + 1
+        }
+
+        return HttpResponse(
+            404,
+            "Mock not found for ${request.method} ${request.url}"
+        )
+    }
+}

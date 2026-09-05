@@ -1,0 +1,136 @@
+import { Map } from "std.collections"
+import { HttpRequest } from ".arest.client.request"
+import { HttpResponse } from ".arest.client.response"
+import { HttpEngine } from ".arest.client.engine.engine"
+
+@Link("curl")
+@Header("<curl/curl.h>")
+lib NativeCurl {
+    @Alias("curl_easy_init")
+    fun curlEasyInit(): Pointer
+    
+    @Alias("curl_easy_perform")
+    fun curlEasyPerform(curl: Pointer): Int
+    
+    @Alias("curl_easy_cleanup")
+    fun curlEasyCleanup(curl: Pointer): Void
+    
+    @Alias("curl_easy_setopt")
+    fun curlEasySetopt(curl: Pointer, option: Int, value: Pointer...): Int
+    
+    @Alias("curl_easy_getinfo")
+    fun curlEasyGetInfo(curl: Pointer, info: Int, value: Pointer...): Int
+
+    @Alias("curl_slist_append")
+    fun curlSlistAppend(list: Pointer, str: Pointer): Pointer
+
+    @Alias("curl_slist_free_all")
+    fun curlSlistFreeAll(list: Pointer): Void
+}
+
+type CurlBuffer(var ptr: Pointer, var length: Int)
+
+fun arestCurlWriteCallback(contents: Pointer, size: Int, nmemb: Int, userp: Pointer): Int {
+    val s = userp as CurlBuffer
+    val n = size * nmemb
+    val newData = Standard.gcRealloc(s.ptr, s.length + n + 1)
+    Standard.memcpy(newData + s.length, contents, n)
+    s.ptr = newData
+    s.length = s.length + n
+    return n
+}
+
+type CurlEngine() : HttpEngine {
+
+    implement fun execute(request: HttpRequest): HttpResponse {
+        val curl = NativeCurl.curlEasyInit()
+        if (curl == null) {
+            return HttpResponse(0, "", Map<String, String>())
+        }
+
+        val buffer = Standard.gcMalloc(24)
+        val buf = buffer as CurlBuffer
+        buf.ptr = null
+        buf.length = 0
+
+        val CURLOPT_URL = 10002
+        val CURLOPT_WRITEFUNCTION = 20011
+        val CURLOPT_WRITEDATA = 10001
+        val CURLOPT_FOLLOWLOCATION = 52
+        val CURLOPT_TIMEOUT_MS = 155
+        val CURLOPT_CONNECTTIMEOUT_MS = 156
+        val CURLOPT_CUSTOMREQUEST = 10036
+        val CURLOPT_POST = 47
+        val CURLOPT_POSTFIELDS = 10015
+        val CURLOPT_POSTFIELDSIZE = 60
+        val CURLOPT_HTTPHEADER = 10023
+        val CURLINFO_RESPONSE_CODE = 2097154
+
+        NativeCurl.curlEasySetopt(curl, CURLOPT_URL, request.url.ptr)
+        NativeCurl.curlEasySetopt(
+            curl, 
+            CURLOPT_WRITEFUNCTION, 
+            funPointer { contents: Pointer, size: Int, nmemb: Int, userp: Pointer -> 
+                arestCurlWriteCallback(contents, size, nmemb, userp) 
+            }
+        )
+        NativeCurl.curlEasySetopt(curl, CURLOPT_WRITEDATA, buffer)
+        NativeCurl.curlEasySetopt(curl, CURLOPT_FOLLOWLOCATION, 1)
+
+        val timeout = if (request.timeoutMs > 0) request.timeoutMs else 15000
+        val connectTimeout = if (timeout > 5000) 5000 else timeout
+        NativeCurl.curlEasySetopt(curl, CURLOPT_CONNECTTIMEOUT_MS, connectTimeout)
+        NativeCurl.curlEasySetopt(curl, CURLOPT_TIMEOUT_MS, timeout)
+
+        // Headers
+        var headerList: Pointer = null
+        if (request.headers.size() > 0) {
+            var i = 0
+            while (i < request.headers.entries.size()) {
+                var curr = request.headers.entries.get(i)
+                while (curr != null) {
+                    val headerLine = "${curr!!.key}: ${curr!!.value}"
+                    headerList = NativeCurl.curlSlistAppend(headerList, headerLine.ptr)
+                    curr = curr!!.next
+                }
+                i = i + 1
+            }
+            if (headerList != null) {
+                NativeCurl.curlEasySetopt(curl, CURLOPT_HTTPHEADER, headerList)
+            }
+        }
+
+        // Method & Body
+        val method = request.method
+        if (method == "POST") {
+            NativeCurl.curlEasySetopt(curl, CURLOPT_POST, 1)
+            if (request.body != "") {
+                NativeCurl.curlEasySetopt(curl, CURLOPT_POSTFIELDS, request.body.ptr)
+                NativeCurl.curlEasySetopt(curl, CURLOPT_POSTFIELDSIZE, request.body.length)
+            }
+        } else if (method != "GET") {
+            NativeCurl.curlEasySetopt(curl, CURLOPT_CUSTOMREQUEST, method.ptr)
+            if (request.body != "") {
+                NativeCurl.curlEasySetopt(curl, CURLOPT_POSTFIELDS, request.body.ptr)
+                NativeCurl.curlEasySetopt(curl, CURLOPT_POSTFIELDSIZE, request.body.length)
+            }
+        }
+
+        val res = NativeCurl.curlEasyPerform(curl)
+
+        var status = 0
+        if (res == 0) {
+            status = Memory.alloc<IntVar> {
+                NativeCurl.curlEasyGetInfo(curl, CURLINFO_RESPONSE_CODE, it.ptr)
+            }.get()
+        }
+
+        if (headerList != null) {
+            NativeCurl.curlSlistFreeAll(headerList)
+        }
+        NativeCurl.curlEasyCleanup(curl)
+
+        val bodyStr = if (buf.ptr == null) "" else String(buf.ptr, buf.length)
+        return HttpResponse(status, bodyStr, Map<String, String>())
+    }
+}
