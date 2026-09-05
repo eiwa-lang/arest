@@ -42,9 +42,9 @@ Aproveita a arquitetura de corrotinas com paralelismo real (Phase 69 do Eiwa).
 ---
 
 ### Fase 3: Roteamento com Parâmetros de Path (PENDENTE)
-- [ ] **Task 3.1 — Path Matching Dinâmico:** Suporte a parâmetros de rota na DSL (`get("/users/:id")` ou `get("/users/{id}")`).
-- [ ] **Task 3.2 — `call.pathParam(name): String?`:** Extração determinística de parâmetros de caminho mapeados pelo roteador.
-- [ ] **Task 3.3 — Tratamento de Rotas Conflitantes:** Ordem de prioridade (rotas estáticas exatas antes de rotas com curinga/parâmetro).
+- [x] **Task 3.1 — Path Matching Dinâmico:** Suporte a parâmetros de rota na DSL (`get("/users/:id")` ou `get("/users/{id}")`).
+- [x] **Task 3.2 — `call.pathParam(name): String?`:** Extração determinística de parâmetros de caminho mapeados pelo roteador.
+- [x] **Task 3.3 — Tratamento de Rotas Conflitantes:** Ordem de prioridade (rotas estáticas exatas antes de rotas com curinga/parâmetro).
 
 ---
 
