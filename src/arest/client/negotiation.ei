@@ -1,5 +1,5 @@
-import { Serializable } from "std.serde"
-import { serializeJson } from "std.json"
+import { Serializable, SerdeValue } from "std.serde"
+import { serializeJson, parseJsonToSerde } from "std.json"
 
 type SerializationException(val text: String) : Throwable {
     implement fun message(): String = this.text
@@ -8,6 +8,7 @@ type SerializationException(val text: String) : Throwable {
 contract ContentNegotiation {
     fun contentType(): String
     fun serialize(payload: Serializable): String
+    fun deserialize(raw: String): SerdeValue
 }
 
 type JsonNegotiation() : ContentNegotiation {
@@ -19,5 +20,9 @@ type JsonNegotiation() : ContentNegotiation {
             throw SerializationException("Failed to serialize payload: missing Json skill or invalid payload")
         }
         return result
+    }
+
+    implement fun deserialize(raw: String): SerdeValue {
+        return parseJsonToSerde(raw)
     }
 }

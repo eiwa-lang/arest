@@ -77,6 +77,7 @@ type ArestClient(
         val req = builder.build(this.config.baseUrl)
         val eng = this.config.engine
         val res = eng.execute(req)
+        res.negotiation = this.config.negotiation
         return res
     }
 

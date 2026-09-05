@@ -1,11 +1,28 @@
 import { assert } from "std.core"
-import { MutableMap } from "std.collections"
-import { Serializable } from "std.serde"
+import { MutableMap, MutableList } from "std.collections"
+import { Serializable, SerdeValue, SerdeObject, SerdeField, SerdeInt, SerdeString } from "std.serde"
 import { Json } from "std.json"
 import { ArestClient, arestClient } from "arest.client.client"
 import { MockEngine } from "arest.client.engine.mock_engine"
+import { ContentNegotiation } from "arest.client.negotiation"
 
 type UserDto(val id: Int, val name: String, val email: String) : Serializable + Json
+
+type CustomKvNegotiation() : ContentNegotiation {
+    implement fun contentType(): String = "text/kv"
+
+    implement fun serialize(payload: Serializable): String {
+        return "not-needed"
+    }
+
+    implement fun deserialize(raw: String): SerdeValue {
+        val fields: MutableList<SerdeField> = MutableList()
+        fields.add(SerdeField("id", SerdeInt(99)))
+        fields.add(SerdeField("name", SerdeString("CustomUser")))
+        fields.add(SerdeField("email", SerdeString("custom@eiwa.dev")))
+        return SerdeObject(fields.freeze())
+    }
+}
 
 test "arest.client: mock engine basic get and response parsing" {
     val mock = MockEngine()
@@ -27,6 +44,11 @@ test "arest.client: mock engine basic get and response parsing" {
     assert(json.get("email")!!.asString() == "leo@eiwa.dev")
     assert(json.get("id")!!.asNumber() == 1.0)
     assert(mock.callCount() == 1)
+
+    val user = res.body<UserDto>()
+    assert(user.id == 1)
+    assert(user.name == "Leo")
+    assert(user.email == "leo@eiwa.dev")
 }
 
 test "arest.client: query parameters and headers builder" {
@@ -178,4 +200,21 @@ test "arest.client: response header helpers" {
     assert(res.headerOrDefault("X-Custom-Token", "default") == "secret-token-xyz")
     assert(res.headerOrDefault("X-Missing", "fallback-val") == "fallback-val")
     assert(res.contentType() == "application/json; charset=utf-8")
+}
+
+test "arest.client: client-configured custom negotiation deserialization" {
+    val mock = MockEngine()
+    mock.on("GET", "/custom").reply(200, "id:99|name:CustomUser|email:custom@eiwa.dev")
+
+    val client = arestClient(mock) {
+        negotiation(CustomKvNegotiation())
+    }
+
+    val res = client.get("/custom")
+    assert(res.ok)
+
+    val user = res.body<UserDto>()
+    assert(user.id == 99)
+    assert(user.name == "CustomUser")
+    assert(user.email == "custom@eiwa.dev")
 }

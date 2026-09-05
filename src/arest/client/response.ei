@@ -1,5 +1,6 @@
 import { Map } from "std.collections"
 import { parseJson, JsonValue } from "std.json"
+import { ContentNegotiation, JsonNegotiation } from ".arest.client.negotiation"
 
 type HttpResponse(
     val status: Int,
@@ -10,11 +11,22 @@ type HttpResponse(
     val isServerError: Bool = status >= 500 && status < 600,
     val isNotFound: Bool = status == 404,
     val isUnauthorized: Bool = status == 401,
-    val isForbidden: Bool = status == 403
+    val isForbidden: Bool = status == 403,
+    var negotiation: ContentNegotiation = JsonNegotiation()
 ) {
 
     fun text(): String = this.rawBody
     fun body(): String = this.rawBody
+
+    fun body<T>(): T {
+        val serdeVal = this.negotiation.deserialize(this.rawBody)
+        return T.deserialize(serdeVal)
+    }
+
+    fun body<T>(negotiation: ContentNegotiation): T {
+        val serdeVal = negotiation.deserialize(this.rawBody)
+        return T.deserialize(serdeVal)
+    }
 
     fun json(): JsonValue {
         return parseJson(this.rawBody)
