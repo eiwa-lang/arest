@@ -3,14 +3,13 @@ import { ServerConnection, Request } from "std.http"
 import { Log } from "std.log"
 
 import { ArestBuilder } from ".arest.arest_builder"
-import { ApplicationCall } from ".arest.application_call"
 
-// import { JsonRpc } from "std.jsonrpc"
-// import { JsonValue } from "std.json"
-// import { Initialize } from ".arest.mcp.protocol.initialize"
-// import { Tools } from ".arest.mcp.protocol.tools"
-// import { Resources } from ".arest.mcp.protocol.resources"
-// import { Prompts } from ".arest.mcp.protocol.prompts"
+import { JsonRpc } from "std.jsonrpc"
+import { JsonValue } from "std.json"
+import { Initialize } from ".arest.mcp.protocol.initialize"
+import { Tools } from ".arest.mcp.protocol.tools"
+import { Resources } from ".arest.mcp.protocol.resources"
+import { Prompts } from ".arest.mcp.protocol.prompts"
 
 type McpDispatcher(val builder: ArestBuilder) {
 
