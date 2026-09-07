@@ -26,42 +26,34 @@ type McpDispatcher(val builder: ArestBuilder) {
             "initialize" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 Initialize.execute(conn, rpc, builder)
-                ""
             }
             "ping" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 conn.writeResponse(200, "application/json", rpc.response("{}"))
-                ""
             }
             "tools/list" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 Tools.list(conn, rpc, builder)
-                ""
             }
             "tools/call" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 Tools.call(conn, rpc, builder)
-                ""
             }
             "resources/list" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 Resources.list(conn, rpc, builder)
-                ""
             }
             "resources/read" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 Resources.read(conn, rpc, builder)
-                ""
             }
             "prompts/list" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 Prompts.list(conn, rpc, builder)
-                ""
             }
             "prompts/get" -> {
                 Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
                 Prompts.get(conn, rpc, builder)
-                ""
             }
             else -> {
                 if (rpc.method.startsWith("notifications/")) {
@@ -74,7 +66,6 @@ type McpDispatcher(val builder: ArestBuilder) {
                     Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 404 Method not found" }
                     conn.writeResponse(404, "application/json", rpc.errorResponse(-32601, "Method not found"))
                 }
-                ""
             }
         }
     }
