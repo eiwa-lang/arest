@@ -15,7 +15,6 @@ type RequestDispatcher(
             Log.info { "[Arest] MCP HTTP ${req.method} ${req.path}" }
             mcp.dispatch(conn, req)
         } else {
-            Log.info { "[Arest] HTTP ${req.method} ${req.path}" }
             http.dispatch(conn, req)
         }
         conn.close()

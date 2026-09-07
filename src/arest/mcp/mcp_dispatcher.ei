@@ -1,71 +1,75 @@
 import { ServerConnection, Request } from "std.http"
 
+import { Log } from "std.log"
+
 import { ArestBuilder } from ".arest.arest_builder"
-import { JsonRpc } from "std.jsonrpc"
-import { JsonValue } from "std.json"
-import { Initialize } from ".arest.mcp.protocol.initialize"
-import { Tools } from ".arest.mcp.protocol.tools"
-import { Resources } from ".arest.mcp.protocol.resources"
-import { Prompts } from ".arest.mcp.protocol.prompts"
+import { ApplicationCall } from ".arest.application_call"
+
+// import { JsonRpc } from "std.jsonrpc"
+// import { JsonValue } from "std.json"
+// import { Initialize } from ".arest.mcp.protocol.initialize"
+// import { Tools } from ".arest.mcp.protocol.tools"
+// import { Resources } from ".arest.mcp.protocol.resources"
+// import { Prompts } from ".arest.mcp.protocol.prompts"
 
 type McpDispatcher(val builder: ArestBuilder) {
 
     fun dispatch(conn: ServerConnection, req: Request) {
         Log.info { "[Arest] HTTP ${req.method} ${req.path}" }
-        
-        if (req.method != "POST") {
-            val emptyRpc = JsonRpc(JsonValue(), "", JsonValue())
-            Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 405 Method Not Allowed" }
-            conn.writeResponse(405, "application/json", emptyRpc.errorResponse(-32600, "Method Not Allowed"))
-            return
-        }
 
-        val rpc = JsonRpc.parse(req.body)
-        when (rpc.method) {
-            "initialize" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                Initialize.execute(conn, rpc, builder)
-            }
-            "ping" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                conn.writeResponse(200, "application/json", rpc.response("{}"))
-            }
-            "tools/list" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                Tools.list(conn, rpc, builder)
-            }
-            "tools/call" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                Tools.call(conn, rpc, builder)
-            }
-            "resources/list" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                Resources.list(conn, rpc, builder)
-            }
-            "resources/read" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                Resources.read(conn, rpc, builder)
-            }
-            "prompts/list" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                Prompts.list(conn, rpc, builder)
-            }
-            "prompts/get" -> {
-                Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
-                Prompts.get(conn, rpc, builder)
-            }
-            else -> {
-                if (rpc.method.startsWith("notifications/")) {
-                    // Notifications (notifications/initialized, notifications/cancelled, ...)
-                    // carry no JSON-RPC response. Acknowledge them with an empty 200 so
-                    // the client handshake completes instead of failing on "Method not found".
-                    Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
-                    conn.writeResponse(200, "application/json", "")
-                } else {
-                    Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 404 Method not found" }
-                    conn.writeResponse(404, "application/json", rpc.errorResponse(-32601, "Method not found"))
-                }
-            }
-        }
+        // if (req.method != "POST") {
+        //     val emptyRpc = JsonRpc(JsonValue(), "", JsonValue())
+        //     Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 405 Method Not Allowed" }
+        //     conn.writeResponse(405, "application/json", emptyRpc.errorResponse(-32600, "Method Not Allowed"))
+        //     return
+        // }
+
+        // val rpc = JsonRpc.parse(req.body)
+        // when (rpc.method) {
+        //     "initialize" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         Initialize.execute(conn, rpc, builder)
+        //     }
+        //     "ping" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         conn.writeResponse(200, "application/json", rpc.response("{}"))
+        //     }
+        //     "tools/list" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         Tools.list(conn, rpc, builder)
+        //     }
+        //     "tools/call" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         Tools.call(conn, rpc, builder)
+        //     }
+        //     "resources/list" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         Resources.list(conn, rpc, builder)
+        //     }
+        //     "resources/read" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         Resources.read(conn, rpc, builder)
+        //     }
+        //     "prompts/list" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         Prompts.list(conn, rpc, builder)
+        //     }
+        //     "prompts/get" -> {
+        //         Log.info { "[Arest] MCP HTTP ${req.method} ${req.path} -> 200 OK" }
+        //         Prompts.get(conn, rpc, builder)
+        //     }
+        //     else -> {
+        //         if (rpc.method.startsWith("notifications/")) {
+        //             // Notifications (notifications/initialized, notifications/cancelled, ...)
+        //             // carry no JSON-RPC response. Acknowledge them with an empty 200 so
+        //             // the client handshake completes instead of failing on "Method not found".
+        //             Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
+        //             conn.writeResponse(200, "application/json", "")
+        //         } else {
+        //             Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 404 Method not found" }
+        //             conn.writeResponse(404, "application/json", rpc.errorResponse(-32601, "Method not found"))
+        //         }
+        //     }
+        // }
     }
 }
