@@ -16,12 +16,12 @@ type McpDispatcher(val builder: ArestBuilder) {
     fun dispatch(conn: ServerConnection, req: Request) {
         Log.info { "[Arest] HTTP ${req.method} ${req.path}" }
 
-        // if (req.method != "POST") {
-        //     val emptyRpc = JsonRpc(JsonValue(), "", JsonValue())
-        //     Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 405 Method Not Allowed" }
-        //     conn.writeResponse(405, "application/json", emptyRpc.errorResponse(-32600, "Method Not Allowed"))
-        //     return
-        // }
+        if (req.method != "POST") {
+            val emptyRpc = JsonRpc(JsonValue(), "", JsonValue())
+            Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 405 Method Not Allowed" }
+            conn.writeResponse(405, "application/json", emptyRpc.errorResponse(-32600, "Method Not Allowed"))
+            return
+        }
 
         // val rpc = JsonRpc.parse(req.body)
         // when (rpc.method) {
