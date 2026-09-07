@@ -12,7 +12,6 @@ type RequestDispatcher(
     fun dispatch(conn: ServerConnection) {
         val req = conn.readRequest()
         if (req.path == builder.mcpBuilder.path) {
-            Log.info { "[Arest] MCP HTTP ${req.method} ${req.path}" }
             mcp.dispatch(conn, req)
         } else {
             http.dispatch(conn, req)
