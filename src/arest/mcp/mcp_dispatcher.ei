@@ -59,16 +59,16 @@ type McpDispatcher(val builder: ArestBuilder) {
         //         Prompts.get(conn, rpc, builder)
         //     }
             else -> {
-                // if (rpc.method.startsWith("notifications/")) {
-                //     // Notifications (notifications/initialized, notifications/cancelled, ...)
-                //     // carry no JSON-RPC response. Acknowledge them with an empty 200 so
-                //     // the client handshake completes instead of failing on "Method not found".
-                //     Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
-                //     conn.writeResponse(200, "application/json", "")
-                // } else {
-                //     Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 404 Method not found" }
-                //     conn.writeResponse(404, "application/json", rpc.errorResponse(-32601, "Method not found"))
-                // }
+                if (rpc.method.startsWith("notifications/")) {
+                    // Notifications (notifications/initialized, notifications/cancelled, ...)
+                    // carry no JSON-RPC response. Acknowledge them with an empty 200 so
+                    // the client handshake completes instead of failing on "Method not found".
+                    Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
+                    conn.writeResponse(200, "application/json", "")
+                } else {
+                    Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 404 Method not found" }
+                    conn.writeResponse(404, "application/json", rpc.errorResponse(-32601, "Method not found"))
+                }
                 "asd"
             }
         }
