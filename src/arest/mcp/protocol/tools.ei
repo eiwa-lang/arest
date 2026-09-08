@@ -55,6 +55,7 @@ object Tools {
         val result = MutableMap<String, JsonValue>()
         result.put("tools", jsonArray(toolsJson.freeze()))
         conn.writeResponse(200, "application/json", rpc.response(jsonObject(result.freeze()).write()))
+        Log.info { "[Arest] MCP Tools list -> 200 OK" }
     }
 
     fun call(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
@@ -76,12 +77,13 @@ object Tools {
                     content.add(text)
                     val result = McpCallResult(content.freeze(), call.errorMessage != "")
                     conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+                    Log.info { "[Arest] MCP Tools call -> 200 OK" }
                     return
                 }
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json",
-            rpc.errorResponse(-32602, "Tool not found: $name"))
+        conn.writeResponse(404, "application/json", rpc.errorResponse(-32602, "Tool not found: $name"))
+        Log.info { "[Arest] MCP Tools call -> 404 Not Found" }
     }
 }

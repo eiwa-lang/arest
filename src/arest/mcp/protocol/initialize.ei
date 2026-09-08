@@ -14,5 +14,6 @@ object Initialize {
         val result = McpInitializeResult("2024-11-05", capabilities, serverInfo)
 
         conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+        Log.info { "[Arest] MCP Initialize -> 200 OK" }
     }
 }

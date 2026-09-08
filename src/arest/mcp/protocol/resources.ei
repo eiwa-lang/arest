@@ -38,6 +38,7 @@ object Resources {
         }
         val result = McpResourcesResult(resourcesList.freeze())
         conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+        Log.info { "[Arest] MCP Resources list -> 200 OK" }
     }
 
     fun read(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
@@ -57,12 +58,13 @@ object Resources {
                     contents.add(content)
                     val result = McpReadResourceResult(contents.freeze())
                     conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+                    Log.info { "[Arest] MCP Resources read -> 200 OK" }
                     return
                 }
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json",
-            rpc.errorResponse(-32602, "Resource not found: $uri"))
+        conn.writeResponse(404, "application/json", rpc.errorResponse(-32602, "Resource not found: $uri"))
+        Log.info { "[Arest] MCP Resources read -> 404 Not Found" }
     }
 }

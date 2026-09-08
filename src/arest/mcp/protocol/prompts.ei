@@ -23,6 +23,7 @@ object Prompts {
         }
         val result = McpPromptsResult(promptsList.freeze())
         conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+        Log.info { "[Arest] MCP Prompts list -> 200 OK" }
     }
 
     fun get(conn: ServerConnection, rpc: JsonRpc, builder: ArestBuilder) {
@@ -39,12 +40,13 @@ object Prompts {
 
                     val result = McpGetPromptResult(call.result, MutableList<String>().freeze())
                     conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+                    Log.info { "[Arest] MCP Prompts get -> 200 OK" }
                     return
                 }
             }
             i = i + 1
         }
-        conn.writeResponse(200, "application/json",
-            rpc.errorResponse(-32602, "Prompt not found: $name"))
+        conn.writeResponse(404, "application/json", rpc.errorResponse(-32602, "Prompt not found: $name"))
+        Log.info { "[Arest] MCP Prompts get -> 404 Not Found" }
     }
 }
