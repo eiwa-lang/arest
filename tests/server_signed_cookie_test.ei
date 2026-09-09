@@ -31,7 +31,9 @@ test "arest.signed_cookie: tampered and wrong-secret rejected" {
     assert(SignedCookie.verifySignedValue(signed, "wrong") == null)
     assert(SignedCookie.verifySignedValue("no-dot-here", secret) == null)
     assert(SignedCookie.verifySignedValue("v0.abc.def", secret) == null)
-    val tampered = signed.substring(0, signed.length - 1) + "0"
+    val last = signed.substring(signed.length - 1, signed.length)
+    val flip = if (last == "0") "1" else "0"
+    val tampered = signed.substring(0, signed.length - 1) + flip
     assert(SignedCookie.verifySignedValue(tampered, secret) == null)
 }
 

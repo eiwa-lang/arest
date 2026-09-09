@@ -1,0 +1,120 @@
+import { assert } from "std.core"
+import { Serializable } from "std.serde"
+import { Json } from "std.json"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+import { Sessions } from ".arest.sessions"
+
+type PkceSession(val verifier: String = "", val state: String = "") : Serializable + Json
+type LoginSession(val user: String = "") : Serializable + Json
+
+test "arest.sessions: plain set/get/clear over HTTP" {
+    val port = 19692
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/start") {
+                    Sessions.setPlain<PkceSession>(this, "PKCE", PkceSession("v123", "s456"), 600)
+                    respondText("ok")
+                }
+                get("/check") {
+                    val s = Sessions.getPlain<PkceSession>(this, "PKCE")
+                    if (s == null) {
+                        respondText("missing", 401)
+                    } else {
+                        respondText("v=${s!!.verifier}")
+                    }
+                }
+                get("/end") {
+                    Sessions.clear(this, "PKCE")
+                    respondText("cleared")
+                }
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19692")
+    }
+    val start = client.get("/start")
+    assert(start.ok)
+    val setCookie = start.header("Set-Cookie")
+    assert(setCookie != null)
+    assert(setCookie!!.indexOf("PKCE=") >= 0)
+    assert(setCookie!!.indexOf("Max-Age=600") >= 0)
+
+    val semi = setCookie!!.indexOf(";")
+    val cookieVal = if (semi == -1) setCookie!! else setCookie!!.substring(0, semi)
+    val check = client.get("/check") {
+        header("Cookie", cookieVal)
+    }
+    assert(check.ok)
+    assert(check.body() == "v=v123")
+
+    val end = client.get("/end")
+    assert(end.ok)
+    val cleared = end.header("Set-Cookie")
+    assert(cleared != null)
+    assert(cleared!!.indexOf("Max-Age=0") >= 0)
+
+    val stop = client.get("/stop")
+    assert(stop.ok)
+    serverThread.join()
+}
+
+test "arest.sessions: signed set/get round-trip over HTTP" {
+    val port = 19693
+    val secret = "sessions-secret"
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/login") {
+                    Sessions.setSigned<LoginSession>(this, "SID", LoginSession("ana"), secret, 3600, "/", true, false)
+                    respondText("ok")
+                }
+                get("/me") {
+                    val s = Sessions.getSigned<LoginSession>(this, "SID", secret)
+                    if (s == null) {
+                        respondText("anon", 401)
+                    } else {
+                        respondText("hi ${s!!.user}")
+                    }
+                }
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19693")
+    }
+    val login = client.get("/login")
+    assert(login.ok)
+    val setCookie = login.header("Set-Cookie")
+    assert(setCookie != null)
+    assert(setCookie!!.indexOf("SID=v1.") >= 0)
+
+    val semi = setCookie!!.indexOf(";")
+    val cookieVal = if (semi == -1) setCookie!! else setCookie!!.substring(0, semi)
+    val me = client.get("/me") {
+        header("Cookie", cookieVal)
+    }
+    assert(me.ok)
+    assert(me.body() == "hi ana")
+
+    val stop = client.get("/stop")
+    assert(stop.ok)
+    serverThread.join()
+}
