@@ -6,11 +6,11 @@ import { sleepMs } from "std.time"
 import { arest } from ".arest.arest"
 import { arestClient } from ".arest.client.client"
 import { CurlEngine } from ".arest.client.engine.curl_engine"
-import { SignedCookie } from ".arest.server.signed_cookie"
+import { SignedCookie } from ".arest.server.signed_cookies"
 
 type TestSession(val identifier: String = "", val name: String = "") : Serializable + Json
 
-test "arest.signed_cookie: sign/verify round-trip" {
+test "arest.signed_cookies: sign/verify round-trip" {
     val secret = "test-secret-123"
     val b64 = SignedCookie.encode(TestSession("u1", "Ana"))
     // base64url alphabet only (no padding, no +/=)
@@ -25,7 +25,7 @@ test "arest.signed_cookie: sign/verify round-trip" {
     assert(session.name == "Ana")
 }
 
-test "arest.signed_cookie: tampered and wrong-secret rejected" {
+test "arest.signed_cookies: tampered and wrong-secret rejected" {
     val secret = "s1"
     val signed = SignedCookie.signPayload(SignedCookie.encode(TestSession("u1", "Ana")), secret)
     assert(SignedCookie.verifySignedValue(signed, "wrong") == null)
@@ -37,13 +37,13 @@ test "arest.signed_cookie: tampered and wrong-secret rejected" {
     assert(SignedCookie.verifySignedValue(tampered, secret) == null)
 }
 
-test "arest.signed_cookie: secureEquals" {
+test "arest.signed_cookies: secureEquals" {
     assert(SignedCookie.secureEquals("abc", "abc"))
     assert(!SignedCookie.secureEquals("abc", "abd"))
     assert(!SignedCookie.secureEquals("abc", "abcd"))
 }
 
-test "arest.signed_cookie: set/get over HTTP" {
+test "arest.signed_cookies: set/get over HTTP" {
     val port = 19691
     val secret = "http-secret"
     val serverThread = Threads.spawn {

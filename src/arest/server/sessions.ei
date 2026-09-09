@@ -1,7 +1,7 @@
 import { Serializable } from "std.serde"
 import { serializeJson, fromJson } from "std.json"
 import { ApplicationCall } from ".arest.server.application_call"
-import { SignedCookie } from ".arest.server.signed_cookie"
+import { SignedCookie } from ".arest.server.signed_cookies"
 
 // Typed session storage over cookies (Ktor Sessions equivalent).
 //
