@@ -1,2 +1,0 @@
-// Back-compat shim: server modules moved to arest.server.* — import from there.
-import { ApplicationCall } from ".arest.server.application_call"
