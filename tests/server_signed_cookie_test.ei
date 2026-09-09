@@ -1,0 +1,98 @@
+import { assert } from "std.core"
+import { Serializable } from "std.serde"
+import { Json } from "std.json"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+import { SignedCookie } from ".arest.signed_cookie"
+
+type TestSession(val identifier: String = "", val name: String = "") : Serializable + Json
+
+test "arest.signed_cookie: sign/verify round-trip" {
+    val secret = "test-secret-123"
+    val b64 = SignedCookie.encode(TestSession("u1", "Ana"))
+    // base64url alphabet only (no padding, no +/=)
+    assert(b64.indexOf("+") == -1)
+    assert(b64.indexOf("=") == -1)
+    val signed = SignedCookie.signPayload(b64, secret)
+    assert(signed.substring(0, 3) == "v1.")
+    val back = SignedCookie.verifySignedValue(signed, secret)
+    assert(back == b64)
+    val session = SignedCookie.decode<TestSession>(back!!)
+    assert(session.identifier == "u1")
+    assert(session.name == "Ana")
+}
+
+test "arest.signed_cookie: tampered and wrong-secret rejected" {
+    val secret = "s1"
+    val signed = SignedCookie.signPayload(SignedCookie.encode(TestSession("u1", "Ana")), secret)
+    assert(SignedCookie.verifySignedValue(signed, "wrong") == null)
+    assert(SignedCookie.verifySignedValue("no-dot-here", secret) == null)
+    assert(SignedCookie.verifySignedValue("v0.abc.def", secret) == null)
+    val tampered = signed.substring(0, signed.length - 1) + "0"
+    assert(SignedCookie.verifySignedValue(tampered, secret) == null)
+}
+
+test "arest.signed_cookie: secureEquals" {
+    assert(SignedCookie.secureEquals("abc", "abc"))
+    assert(!SignedCookie.secureEquals("abc", "abd"))
+    assert(!SignedCookie.secureEquals("abc", "abcd"))
+}
+
+test "arest.signed_cookie: set/get over HTTP" {
+    val port = 19691
+    val secret = "http-secret"
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/login") {
+                    SignedCookie.setSignedCookie(this, "SID", TestSession("u9", "Beto"), secret, 600, "/", false, false)
+                    respondText("ok")
+                }
+                get("/me") {
+                    val s = SignedCookie.getSignedCookie<TestSession>(this, "SID", secret)
+                    if (s == null) {
+                        respondText("anon", 401)
+                    } else {
+                        respondText("hi ${s!!.name}")
+                    }
+                }
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19691")
+    }
+    val login = client.get("/login")
+    assert(login.ok)
+    val setCookie = login.header("Set-Cookie")
+    assert(setCookie != null)
+    assert(setCookie!!.indexOf("SID=v1.") >= 0)
+    assert(setCookie!!.indexOf("Max-Age=600") >= 0)
+
+    // extract cookie value and replay it
+    val semi = setCookie!!.indexOf(";")
+    val cookieVal = if (semi == -1) setCookie!! else setCookie!!.substring(0, semi)
+    val me = client.get("/me") {
+        header("Cookie", cookieVal)
+    }
+    assert(me.ok)
+    assert(me.body() == "hi Beto")
+
+    val bad = client.get("/me") {
+        header("Cookie", "SID=v1.forged.deadbeef")
+    }
+    assert(bad.status == 401)
+
+    val stop = client.get("/stop")
+    assert(stop.ok)
+    serverThread.join()
+}
