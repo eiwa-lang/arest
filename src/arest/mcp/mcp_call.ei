@@ -1,7 +1,7 @@
 import { JsonValue } from "std.json"
 import { Map } from "std.collections"
 import { Stringable } from "std.core"
-import { ArestBuilder } from ".arest.arest_builder"
+import { ArestBuilder } from ".arest.server.arest_builder"
 
 type McpCall(
     val server: ArestBuilder,

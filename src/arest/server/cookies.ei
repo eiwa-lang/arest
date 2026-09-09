@@ -1,0 +1,30 @@
+// Pure cookie helpers: parsing the Cookie request header and building
+// Set-Cookie header values. No HTTP involved — fully unit-testable.
+
+object Cookies {
+
+    // Reads a cookie from a raw Cookie header value. Returns null when absent.
+    fun parse(header: String, name: String): String? {
+        val parts = header.split(";")
+        var i = 0
+        while (i < parts.size()) {
+            val pair = parts.get(i).trim()
+            if (pair.length > name.length + 1 && pair.substring(0, name.length + 1) == "$name=") {
+                return pair.substring(name.length + 1, pair.length)
+            }
+            i = i + 1
+        }
+        return null
+    }
+
+    // Builds a Set-Cookie header value. `attrs` is appended verbatim
+    // (e.g. "; Path=/; Max-Age=600; HttpOnly").
+    fun build(name: String, value: String, attrs: String = ""): String {
+        return "$name=$value$attrs"
+    }
+
+    // Builds an expired Set-Cookie header value for clearing a cookie.
+    fun expired(name: String, path: String = "/"): String {
+        return "$name=; Path=$path; Max-Age=0"
+    }
+}

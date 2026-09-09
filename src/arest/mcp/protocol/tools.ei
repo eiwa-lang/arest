@@ -1,6 +1,6 @@
 import { ServerConnection } from "std.http"
 
-import { ArestBuilder } from ".arest.arest_builder"
+import { ArestBuilder } from ".arest.server.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
 import { JsonValue, jsonObject, jsonArray, jsonString } from "std.json"
 import { MutableList, MutableMap } from "std.collections"

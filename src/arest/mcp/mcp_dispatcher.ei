@@ -2,7 +2,7 @@ import { ServerConnection, Request } from "std.http"
 
 import { Log } from "std.log"
 
-import { ArestBuilder } from ".arest.arest_builder"
+import { ArestBuilder } from ".arest.server.arest_builder"
 
 import { JsonRpc } from "std.jsonrpc"
 import { JsonValue } from "std.json"

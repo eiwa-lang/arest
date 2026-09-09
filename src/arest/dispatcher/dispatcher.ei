@@ -1,6 +1,6 @@
 import { ServerConnection } from "std.http"
 
-import { ArestBuilder } from ".arest.arest_builder"
+import { ArestBuilder } from ".arest.server.arest_builder"
 import { HttpDispatcher } from ".arest.dispatcher.http_dispatcher"
 import { McpDispatcher } from ".arest.mcp.mcp_dispatcher"
 

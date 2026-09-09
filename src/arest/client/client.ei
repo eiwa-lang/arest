@@ -2,7 +2,7 @@ import { MutableMap } from "std.collections"
 import { Serializable } from "std.serde"
 import { HttpRequest, RequestBuilder } from ".arest.client.request"
 import { HttpResponse } from ".arest.client.response"
-import { ContentNegotiation, JsonNegotiation } from ".arest.negotiation"
+import { ContentNegotiation, JsonNegotiation } from ".arest.server.negotiation"
 import { HttpEngine } from ".arest.client.engine.engine"
 import { CurlEngine } from ".arest.client.engine.curl_engine"
 

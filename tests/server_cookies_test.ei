@@ -1,0 +1,26 @@
+import { assert } from "std.core"
+import { Cookies } from ".arest.server.cookies"
+
+// Old flat paths keep working through re-export shims.
+import { Sessions } from ".arest.sessions"
+import { SignedCookie } from ".arest.signed_cookie"
+
+test "arest.cookies: parse single and multiple cookies" {
+    assert(Cookies.parse("SID=v1.abc.def", "SID") == "v1.abc.def")
+    assert(Cookies.parse("a=1; SID=xyz; b=2", "SID") == "xyz")
+    assert(Cookies.parse("a=1; b=2", "SID") == null)
+    assert(Cookies.parse("SIDX=1; SID=2", "SID") == "2")
+    assert(Cookies.parse("  SID = spaced ", "SID") == null)
+}
+
+test "arest.cookies: build and expired" {
+    assert(Cookies.build("SID", "v1.x", "; Path=/; Max-Age=600") == "SID=v1.x; Path=/; Max-Age=600")
+    assert(Cookies.build("A", "b") == "A=b")
+    assert(Cookies.expired("SID") == "SID=; Path=/; Max-Age=0")
+    assert(Cookies.expired("SID", "/app") == "SID=; Path=/app; Max-Age=0")
+}
+
+test "arest.compat: old flat import paths re-export server modules" {
+    assert(Cookies.build("A", "b") == "A=b")
+    assert(SignedCookie.secureEquals("x", "x"))
+}

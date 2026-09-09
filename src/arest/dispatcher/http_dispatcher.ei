@@ -2,10 +2,10 @@ import { ServerConnection, Request } from "std.http"
 import { Log } from "std.log"
 import { File } from "std.fs"
 
-import { ArestBuilder } from ".arest.arest_builder"
-import { ApplicationCall } from ".arest.application_call"
-import { RouteMatch, StaticConfig } from ".arest.routing"
-import { Mime, MimeType } from ".arest.mime"
+import { ArestBuilder } from ".arest.server.arest_builder"
+import { ApplicationCall } from ".arest.server.application_call"
+import { RouteMatch, StaticConfig } from ".arest.server.routing"
+import { Mime, MimeType } from ".arest.server.mime"
 
 type HttpDispatcher(val builder: ArestBuilder) {
 

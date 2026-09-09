@@ -1,0 +1,75 @@
+enum MimeType {
+    HTML, CSS, JS, JSON, PNG, JPEG, GIF, SVG, ICO, TXT,
+    WOFF, WOFF2, TTF, WEBP, MP4, WEBM, MP3, WAV, OCTET
+}
+
+object Mime {
+    fun lastIndexOf(haystack: String, needle: String): Int {
+        var found = -1
+        var i = 0
+        while (i <= haystack.length - needle.length) {
+            val sub = haystack.substring(i, i + needle.length)
+            if (sub == needle) {
+                found = i
+            }
+            i = i + 1
+        }
+        return found
+    }
+
+    fun resolve(path: String): MimeType {
+        val dot = lastIndexOf(path, ".")
+        if (dot < 0) {
+            return MimeType.OCTET
+        }
+        val ext = path.substring(dot + 1, path.length)
+        return when (ext) {
+            "html" -> MimeType.HTML
+            "htm" -> MimeType.HTML
+            "css" -> MimeType.CSS
+            "js" -> MimeType.JS
+            "json" -> MimeType.JSON
+            "png" -> MimeType.PNG
+            "jpg" -> MimeType.JPEG
+            "jpeg" -> MimeType.JPEG
+            "gif" -> MimeType.GIF
+            "svg" -> MimeType.SVG
+            "ico" -> MimeType.ICO
+            "txt" -> MimeType.TXT
+            "woff" -> MimeType.WOFF
+            "woff2" -> MimeType.WOFF2
+            "ttf" -> MimeType.TTF
+            "webp" -> MimeType.WEBP
+            "mp4" -> MimeType.MP4
+            "webm" -> MimeType.WEBM
+            "mp3" -> MimeType.MP3
+            "wav" -> MimeType.WAV
+            else -> MimeType.OCTET
+        }
+    }
+
+    fun headerValue(mime: MimeType): String {
+        return when (mime) {
+            MimeType.HTML -> "text/html"
+            MimeType.CSS -> "text/css"
+            MimeType.JS -> "application/javascript"
+            MimeType.JSON -> "application/json"
+            MimeType.PNG -> "image/png"
+            MimeType.JPEG -> "image/jpeg"
+            MimeType.GIF -> "image/gif"
+            MimeType.SVG -> "image/svg+xml"
+            MimeType.ICO -> "image/x-icon"
+            MimeType.TXT -> "text/plain"
+            MimeType.WOFF -> "font/woff"
+            MimeType.WOFF2 -> "font/woff2"
+            MimeType.TTF -> "font/ttf"
+            MimeType.WEBP -> "image/webp"
+            MimeType.MP4 -> "video/mp4"
+            MimeType.WEBM -> "video/webm"
+            MimeType.MP3 -> "audio/mpeg"
+            MimeType.WAV -> "audio/wav"
+            MimeType.OCTET -> "application/octet-stream"
+            else -> "application/octet-stream"
+        }
+    }
+}

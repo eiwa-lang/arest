@@ -6,7 +6,7 @@ import { sleepMs } from "std.time"
 import { arest } from ".arest.arest"
 import { arestClient } from ".arest.client.client"
 import { CurlEngine } from ".arest.client.engine.curl_engine"
-import { SignedCookie } from ".arest.signed_cookie"
+import { SignedCookie } from ".arest.server.signed_cookie"
 
 type TestSession(val identifier: String = "", val name: String = "") : Serializable + Json
 

@@ -6,7 +6,7 @@ import { sleepMs } from "std.time"
 import { arest } from ".arest.arest"
 import { arestClient } from ".arest.client.client"
 import { CurlEngine } from ".arest.client.engine.curl_engine"
-import { Sessions } from ".arest.sessions"
+import { Sessions } from ".arest.server.sessions"
 
 type PkceSession(val verifier: String = "", val state: String = "") : Serializable + Json
 type LoginSession(val user: String = "") : Serializable + Json
