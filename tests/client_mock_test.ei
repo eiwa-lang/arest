@@ -2,9 +2,9 @@ import { assert } from "std.core"
 import { MutableMap, MutableList } from "std.collections"
 import { Serializable, SerdeValue, SerdeObject, SerdeField, SerdeInt, SerdeString } from "std.serde"
 import { Json } from "std.json"
-import { ArestClient, arestClient } from "arest.client.client"
-import { MockEngine } from "arest.client.engine.mock_engine"
-import { ContentNegotiation } from "arest.client.negotiation"
+import { ArestClient, arestClient } from ".arest.client.client"
+import { MockEngine } from ".arest.client.engine.mock_engine"
+import { ContentNegotiation } from ".arest.client.negotiation"
 
 type UserDto(val id: Int, val name: String, val email: String) : Serializable + Json
 

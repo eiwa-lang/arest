@@ -1,9 +1,9 @@
 import { assert } from "std.core"
 import { Threads } from "std.thread"
 import { sleepMs } from "std.time"
-import { arest } from "arest.arest"
-import { arestClient } from "arest.client.client"
-import { CurlEngine } from "arest.client.engine.curl_engine"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
 
 test "arest.server: path parameters" {
     val port = 19700

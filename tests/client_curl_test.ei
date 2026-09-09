@@ -4,8 +4,8 @@ import { Threads } from "std.thread"
 import { sleepMs } from "std.time"
 import { Serializable } from "std.serde"
 import { Json } from "std.json"
-import { ArestClient, arestClient } from "arest.client.client"
-import { CurlEngine } from "arest.client.engine.curl_engine"
+import { ArestClient, arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
 
 type EchoPayload(val greeting: String, val count: Int) : Serializable + Json
 

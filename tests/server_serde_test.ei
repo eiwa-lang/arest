@@ -3,9 +3,9 @@ import { Threads } from "std.thread"
 import { sleepMs } from "std.time"
 import { Serializable } from "std.serde"
 import { Json } from "std.json"
-import { arest } from "arest.arest"
-import { arestClient } from "arest.client.client"
-import { CurlEngine } from "arest.client.engine.curl_engine"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
 
 type UserDto(val id: Int, val name: String) : Serializable + Json
 
