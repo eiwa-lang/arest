@@ -51,6 +51,26 @@ test "arest.client: mock engine basic get and response parsing" {
     assert(user.email == "leo@eiwa.dev")
 }
 
+test "arest.client: followRedirects builder flag reaches the engine" {
+    val mock = MockEngine()
+    mock.on("GET", "/r").reply(302, "")
+
+    val client = arestClient(mock) {
+        baseUrl("https://api.myapp.com")
+    }
+
+    val followed = client.get("/r")
+    assert(followed.status == 302)
+
+    val notFollowed = client.get("/r") {
+        followRedirects(false)
+    }
+    assert(notFollowed.status == 302)
+    val last = mock.lastRequest()
+    assert(last != null)
+    assert(last!!.followRedirects == false)
+}
+
 test "arest.client: query parameters and headers builder" {
     val mock = MockEngine()
     mock.on("GET", "/search")

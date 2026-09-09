@@ -119,7 +119,7 @@ type CurlEngine() : HttpEngine {
             }
         )
         NativeCurl.curlEasySetopt(curl, CURLOPT_HEADERDATA, headerBuffer)
-        NativeCurl.curlEasySetopt(curl, CURLOPT_FOLLOWLOCATION, 1)
+        NativeCurl.curlEasySetopt(curl, CURLOPT_FOLLOWLOCATION, if (request.followRedirects) 1 else 0)
 
         val timeout = if (request.timeoutMs > 0) request.timeoutMs else 15000
         val connectTimeout = if (timeout > 5000) 5000 else timeout

@@ -8,7 +8,8 @@ type HttpRequest(
     val headers: Map<String, String>,
     val queries: Map<String, String>,
     val body: String,
-    val timeoutMs: Int
+    val timeoutMs: Int,
+    val followRedirects: Bool = true
 )
 
 type RequestBuilder(
@@ -16,6 +17,7 @@ type RequestBuilder(
     var url: String,
     var bodyContent: String = "",
     var timeoutMs: Int = 15000,
+    var followRedirects: Bool = true,
     val headers: MutableMap<String, String> = MutableMap<String, String>(),
     val queries: MutableMap<String, String> = MutableMap<String, String>()
 ) {
@@ -56,6 +58,11 @@ type RequestBuilder(
 
     fun timeout(ms: Int): RequestBuilder {
         this.timeoutMs = ms
+        return this
+    }
+
+    fun followRedirects(follow: Bool): RequestBuilder {
+        this.followRedirects = follow
         return this
     }
 
@@ -106,7 +113,8 @@ type RequestBuilder(
             this.headers.freeze(),
             this.queries.freeze(),
             this.bodyContent,
-            this.timeoutMs
+            this.timeoutMs,
+            this.followRedirects
         )
     }
 }
