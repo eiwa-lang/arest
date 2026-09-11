@@ -54,7 +54,7 @@ type ArestClient(
             while (i < this.config.defaultHeaders.entries.size()) {
                 var curr = this.config.defaultHeaders.entries.get(i)
                 while (curr != null) {
-                    if (builder.headers.containsKey(curr!!.key) == false) {
+                    if (builder.headers.contains(curr!!.key) == false) {
                         builder.header(curr!!.key, curr!!.value)
                     }
                     curr = curr!!.next
@@ -63,10 +63,10 @@ type ArestClient(
             }
         }
 
-        if (builder.bodyContent != "" && builder.headers.containsKey("Content-Type") == false) {
+        if (builder.bodyContent != "" && builder.headers.contains("Content-Type") == false) {
             builder.header("Content-Type", this.config.negotiation.contentType())
         }
-        if (builder.headers.containsKey("Accept") == false) {
+        if (builder.headers.contains("Accept") == false) {
             builder.header("Accept", this.config.negotiation.contentType())
         }
 

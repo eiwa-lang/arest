@@ -1,0 +1,117 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { Serializable } from "std.serde"
+import { Json } from "std.json"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+
+type LoginDto(val user: String, val pass: String) : Serializable + Json
+
+test "arest.server: form() and body<T>() alias" {
+    val port = 19711
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                post("/login") {
+                    val user = form("user")
+                    val pass = formOrDefault("pass", "none")
+                    val userStr = if (user != null) user!! else "missing"
+                    respondText("user=$userStr,pass=$pass")
+                }
+
+                post("/decode") {
+                    val city = form("city")
+                    val msg = form("msg")
+                    val sym = form("sym")
+                    val cityStr = if (city != null) city!! else "missing"
+                    val msgStr = if (msg != null) msg!! else "missing"
+                    val symStr = if (sym != null) sym!! else "missing"
+                    respondText("$cityStr|$msgStr|$symStr")
+                }
+
+                post("/all") {
+                    val params = formParams()
+                    val a = params.get("a")
+                    val b = params.get("b")
+                    val aStr = if (a != null) a!! else "missing"
+                    val bStr = if (b != null) b!! else "missing"
+                    respondText("$aStr,$bStr")
+                }
+
+                post("/empty") {
+                    val v = form("anything")
+                    val out = if (v != null) v!! else "null-ok"
+                    val d = formOrDefault("anything", "def-ok")
+                    respondText("$out,$d")
+                }
+
+                // body<T>() alias of receive<T>() via negotiation (JSON)
+                post("/json_alias") {
+                    val dto = this.body<LoginDto>()
+                    respondText("${dto.user}:${dto.pass}")
+                }
+
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19711")
+    }
+
+    // 1. Basic form fields
+    val resLogin = client.post("/login") {
+        body("user=ana&pass=s3cr3t")
+        header("Content-Type", "application/x-www-form-urlencoded")
+    }
+    assert(resLogin.ok, "POST /login with form body should succeed")
+    assert(resLogin.body() == "user=ana,pass=s3cr3t")
+
+    // 2. Missing field -> null / default
+    val resMissing = client.post("/login") {
+        body("user=ana")
+        header("Content-Type", "application/x-www-form-urlencoded")
+    }
+    assert(resMissing.ok)
+    assert(resMissing.body() == "user=ana,pass=none")
+
+    // 3. URL decoding (+ and %XX)
+    val resDecode = client.post("/decode") {
+        body("city=Sao+Paulo&msg=ola%20mundo&sym=%26%3D")
+        header("Content-Type", "application/x-www-form-urlencoded")
+    }
+    assert(resDecode.ok, "form() should URL-decode values")
+    assert(resDecode.body() == "Sao Paulo|ola mundo|&=")
+
+    // 4. formParams() map with all fields
+    val resAll = client.post("/all") {
+        body("a=1&b=2")
+        header("Content-Type", "application/x-www-form-urlencoded")
+    }
+    assert(resAll.ok)
+    assert(resAll.body() == "1,2")
+
+    // 5. Empty body -> null + default, no crash
+    val resEmpty = client.post("/empty") {
+        body("")
+        header("Content-Type", "application/x-www-form-urlencoded")
+    }
+    assert(resEmpty.ok)
+    assert(resEmpty.body() == "null-ok,def-ok")
+
+    // 6. body<T>() alias works like receive<T>() for JSON
+    val resJson = client.post("/json_alias", LoginDto("bob", "pw123"))
+    assert(resJson.ok, "POST /json_alias via body<T>() should succeed")
+    assert(resJson.body() == "bob:pw123")
+
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    serverThread.join()
+}

@@ -1,0 +1,141 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+
+test "arest.server: group(prefix) with nesting and path params" {
+    val port = 19710
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                // Basic group without leading slash on inner routes
+                group("user") {
+                    get {
+                        respondText("user-root")
+                    }
+                    get("me") {
+                        respondText("user-me")
+                    }
+                    get("list") {
+                        respondText("user-list")
+                    }
+                }
+
+                // Group with leading slashes + path param inside
+                group("/api") {
+                    group("v1") {
+                        get("/users") {
+                            respondText("api-v1-users")
+                        }
+                        get("/users/:id") {
+                            val id = pathParam("id")
+                            val idStr = if (id != null) id!! else "missing"
+                            respondText("api-v1-user-$idStr")
+                        }
+                        post("/users") {
+                            respondText("api-v1-create", status = 201)
+                        }
+                    }
+                }
+
+                // Group root maps to the prefix itself
+                group("/admin") {
+                    get("/") {
+                        respondText("admin-root")
+                    }
+                }
+
+                // Shorthand without path uses the group prefix
+                group("/profile") {
+                    get {
+                        respondText("profile-root")
+                    }
+                    post {
+                        respondText("profile-create", status = 201)
+                    }
+                }
+
+                // Shorthand outside any group maps to "/"
+                get {
+                    respondText("root")
+                }
+
+                // Route outside any group still works (prefix restored)
+                get("/healthz") {
+                    respondText("ok")
+                }
+
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19710")
+    }
+
+    // 1. Basic group: "user" + "me" / "list"
+    val resRoot = client.get("/user")
+    assert(resRoot.ok, "GET /user should match group(user)+get{} shorthand")
+    assert(resRoot.body() == "user-root")
+
+    val resMe = client.get("/user/me")
+    assert(resMe.ok, "GET /user/me should match group(user)+get(me)")
+    assert(resMe.body() == "user-me")
+
+    val resList = client.get("/user/list")
+    assert(resList.ok, "GET /user/list should match group(user)+get(list)")
+    assert(resList.body() == "user-list")
+
+    // 2. Nested groups: /api + v1 + /users
+    val resUsers = client.get("/api/v1/users")
+    assert(resUsers.ok, "GET /api/v1/users should match nested groups")
+    assert(resUsers.body() == "api-v1-users")
+
+    // 3. Path param inside group
+    val resOne = client.get("/api/v1/users/42")
+    assert(resOne.ok, "GET /api/v1/users/:id should match inside group")
+    assert(resOne.body() == "api-v1-user-42")
+
+    // 4. POST inside group
+    val resCreate = client.post("/api/v1/users")
+    assert(resCreate.status == 201, "POST /api/v1/users should match inside group")
+    assert(resCreate.body() == "api-v1-create")
+
+    // 5. Group root
+    val resAdmin = client.get("/admin")
+    assert(resAdmin.ok, "GET /admin should match group(/admin)+get(/)")
+    assert(resAdmin.body() == "admin-root")
+
+    // 6. Outside group unaffected
+    val resHealth = client.get("/healthz")
+    assert(resHealth.ok, "GET /healthz outside group should still work")
+    assert(resHealth.body() == "ok")
+
+    // 7. Unknown still 404
+    val res404 = client.get("/user/unknown/deep")
+    assert(res404.status == 404, "Unknown deep path should be 404")
+
+    // 8. Shorthand get/post without path inside group + root "/"
+    val resProfile = client.get("/profile")
+    assert(resProfile.ok, "GET /profile should match group(/profile)+get{}")
+    assert(resProfile.body() == "profile-root")
+
+    val resProfilePost = client.post("/profile")
+    assert(resProfilePost.status == 201, "POST /profile should match group(/profile)+post{}")
+    assert(resProfilePost.body() == "profile-create")
+
+    val resTopRoot = client.get("/")
+    assert(resTopRoot.ok, "GET / should match top-level get{}")
+    assert(resTopRoot.body() == "root")
+
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    serverThread.join()
+}

@@ -1,4 +1,5 @@
 import { MutableMap } from "std.collections"
+import { ApplicationCall } from ".arest.server.application_call"
 
 // Holds the matched route together with the extracted path parameters.
 type RouteMatch(
@@ -9,7 +10,7 @@ type RouteMatch(
 type Route(
     val method: String,
     val pattern: String,
-    val handler: ApplicationCall.() -> Void
+    val handler: ApplicationCall.(ApplicationCall) -> Void
 )
 
 type StaticConfig(
@@ -19,35 +20,77 @@ type StaticConfig(
 
 type RoutingBuilder(
     val routes: MutableList<Route?> = MutableList<Route?>(),
-    val staticRoutes: MutableList<StaticConfig?> = MutableList<StaticConfig?>()
+    val staticRoutes: MutableList<StaticConfig?> = MutableList<StaticConfig?>(),
+    var groupPrefix: String = ""
 ) {
 
-    fun get(path: String, handler: ApplicationCall.() -> Void) {
-        routes.add(Route("GET", path, handler))
+    // Groups routes under a common prefix, e.g.:
+    // group("/user") { get("/list") { ... } get("me") { ... } }
+    // Supports nesting: group("/api") { group("v1") { get("/users") { ... } } }
+    fun group(prefix: String, init: RoutingBuilder.() -> Void) {
+        val prev = this.groupPrefix
+        this.groupPrefix = joinPrefix(prev, prefix)
+        init(this)
+        this.groupPrefix = prev
     }
 
-    fun post(path: String, handler: ApplicationCall.() -> Void) {
-        routes.add(Route("POST", path, handler))
+    fun get(path: String, handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("GET", joinPrefix(this.groupPrefix, path), handler))
     }
 
-    fun put(path: String, handler: ApplicationCall.() -> Void) {
-        routes.add(Route("PUT", path, handler))
+    fun post(path: String, handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("POST", joinPrefix(this.groupPrefix, path), handler))
     }
 
-    fun patch(path: String, handler: ApplicationCall.() -> Void) {
-        routes.add(Route("PATCH", path, handler))
+    fun put(path: String, handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("PUT", joinPrefix(this.groupPrefix, path), handler))
     }
 
-    fun delete(path: String, handler: ApplicationCall.() -> Void) {
-        routes.add(Route("DELETE", path, handler))
+    fun patch(path: String, handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("PATCH", joinPrefix(this.groupPrefix, path), handler))
     }
 
-    fun head(path: String, handler: ApplicationCall.() -> Void) {
-        routes.add(Route("HEAD", path, handler))
+    fun delete(path: String, handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("DELETE", joinPrefix(this.groupPrefix, path), handler))
     }
 
-    fun options(path: String, handler: ApplicationCall.() -> Void) {
-        routes.add(Route("OPTIONS", path, handler))
+    fun head(path: String, handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("HEAD", joinPrefix(this.groupPrefix, path), handler))
+    }
+
+    fun options(path: String, handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("OPTIONS", joinPrefix(this.groupPrefix, path), handler))
+    }
+
+    // Shorthand without path: uses the current group prefix itself.
+    // group("user") { get { ... } } -> GET /user
+    // Outside any group, get { ... } -> GET /
+    fun get(handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("GET", joinPrefix(this.groupPrefix, "/"), handler))
+    }
+
+    fun post(handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("POST", joinPrefix(this.groupPrefix, "/"), handler))
+    }
+
+    fun put(handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("PUT", joinPrefix(this.groupPrefix, "/"), handler))
+    }
+
+    fun patch(handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("PATCH", joinPrefix(this.groupPrefix, "/"), handler))
+    }
+
+    fun delete(handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("DELETE", joinPrefix(this.groupPrefix, "/"), handler))
+    }
+
+    fun head(handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("HEAD", joinPrefix(this.groupPrefix, "/"), handler))
+    }
+
+    fun options(handler: ApplicationCall.(ApplicationCall) -> Void) {
+        routes.add(Route("OPTIONS", joinPrefix(this.groupPrefix, "/"), handler))
     }
 
     // Returns a RouteMatch if the given method+path matches this route list,
@@ -134,7 +177,35 @@ type RoutingBuilder(
         return segs
     }
 
+    // Joins a group prefix with a route path, normalizing slashes.
+    // joinPrefix("/user", "me") -> "/user/me"
+    // joinPrefix("/user", "/me") -> "/user/me"
+    // joinPrefix("", "/hello") -> "/hello"
+    // joinPrefix("/api", "/") -> "/api"
+    fun joinPrefix(base: String, rel: String): String {
+        var b = base
+        if (b == "/") {
+            b = ""
+        } else if (b.endsWith("/") && b.length > 1) {
+            b = b.substring(0, b.length - 1)
+        }
+        if (rel == "" || rel == "/") {
+            if (b == "") {
+                return "/"
+            }
+            return b
+        }
+        var r = rel
+        if (!r.startsWith("/")) {
+            r = "/$r"
+        }
+        if (b == "") {
+            return r
+        }
+        return "$b$r"
+    }
+
     fun static(prefix: String, dir: String) {
-        staticRoutes.add(StaticConfig(prefix, dir))
+        staticRoutes.add(StaticConfig(joinPrefix(this.groupPrefix, prefix), dir))
     }
 }

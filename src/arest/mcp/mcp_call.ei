@@ -6,7 +6,7 @@ import { ArestBuilder } from ".arest.server.arest_builder"
 type McpCall(
     val server: ArestBuilder,
     val tool: String = "",
-    val arguments: Map<String, JsonValue> = Map<String, JsonValue>(),
+    val arguments: Map<String, JsonValue> = Map(),
     var result: String = "",
     var errorMessage: String = ""
 ) {
@@ -23,7 +23,11 @@ type McpCall(
         return text
     }
 
+    fun argument(name: String): JsonValue? {
+        return this.arguments.get(name)
+    }
+
     fun hasArgument(name: String): Bool {
-        return this.arguments.containsKey(name)
+        return this.arguments.contains(name)
     }
 }

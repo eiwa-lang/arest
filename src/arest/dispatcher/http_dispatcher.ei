@@ -16,7 +16,7 @@ type HttpDispatcher(val builder: ArestBuilder) {
             val m = match!!
             val call = ApplicationCall(conn, req, builder, m.pathParams)
             Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
-            m.route.handler(call)
+            m.route.handler(call, call)
             found = true
         }
 
