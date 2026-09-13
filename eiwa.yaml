@@ -3,4 +3,6 @@ version: 0.1.0
 
 dependencies:
   crypto:
-    path: ../crypto
+    # path: ../crypto
+    github: eiwa-lang/crypto
+    branch: main
