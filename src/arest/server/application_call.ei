@@ -49,6 +49,10 @@ type ApplicationCall(
         conn.writeResponseWithHeaders(status, contentType, body, pendingHeaders.freeze())
     }
 
+    fun respond(status: Int = 204) {
+        conn.writeResponseWithHeaders(status, server.negotiation.contentType(), "", pendingHeaders.freeze())
+    }
+
     fun respond(value: Serializable, status: Int = 200) {
         val body = server.negotiation.serialize(value)
         respond(body, status, server.negotiation.contentType())
@@ -107,19 +111,19 @@ type ApplicationCall(
     }
 
     fun respondText(body: String, status: Int = 200) {
-        respond(body, status, "text/plain")
+        respond(body, status, "text/plain; charset=UTF-8")
     }
 
     fun respondHtml(body: String, status: Int = 200) {
-        respond(body, status, "text/html")
+        respond(body, status, "text/html; charset=UTF-8")
     }
 
     fun respondHtml(bodyContent: () -> String, status: Int = 200) {
-        respond(bodyContent(), status, "text/html")
+        respond(bodyContent(), status, "text/html; charset=UTF-8")
     }
 
     fun respondJson(body: String, status: Int = 200) {
-        respond(body, status, "application/json")
+        respond(body, status, "application/json; charset=UTF-8")
     }
 
     fun header(name: String): String? {
