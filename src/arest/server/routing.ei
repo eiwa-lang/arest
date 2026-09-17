@@ -107,10 +107,10 @@ type RoutingBuilder(
                     if (params != null) {
                         val isExact = route.pattern == path
                         if (isExact) {
-                            return RouteMatch(route, params!!)
+                            return RouteMatch(route, params)
                         }
                         if (parametric == null) {
-                            parametric = RouteMatch(route, params!!)
+                            parametric = RouteMatch(route, params)
                         }
                     }
                 }

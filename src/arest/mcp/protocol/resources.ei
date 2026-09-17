@@ -1,3 +1,4 @@
+import { HttpStatus } from "std.http"
 import { ServerConnection } from "std.http"
 
 import { ArestBuilder } from ".arest.server.arest_builder"
@@ -37,7 +38,7 @@ object Resources {
             i = i + 1
         }
         val result = McpResourcesResult(resourcesList.freeze())
-        conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+        conn.writeResponse(HttpStatus.OK, "application/json", rpc.response(result.toJson()))
         Log.info { "[Arest] MCP Resources list -> 200 OK" }
     }
 
@@ -57,14 +58,14 @@ object Resources {
                     val contents = MutableList<McpResourceContent>()
                     contents.add(content)
                     val result = McpReadResourceResult(contents.freeze())
-                    conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+                    conn.writeResponse(HttpStatus.OK, "application/json", rpc.response(result.toJson()))
                     Log.info { "[Arest] MCP Resources read -> 200 OK" }
                     return
                 }
             }
             i = i + 1
         }
-        conn.writeResponse(404, "application/json", rpc.errorResponse(-32602, "Resource not found: $uri"))
+        conn.writeResponse(HttpStatus.NOT_FOUND, "application/json", rpc.errorResponse(-32602, "Resource not found: $uri"))
         Log.info { "[Arest] MCP Resources read -> 404 Not Found" }
     }
 }

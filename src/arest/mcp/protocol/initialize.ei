@@ -3,6 +3,7 @@ import { ServerConnection } from "std.http"
 import { ArestBuilder } from ".arest.server.arest_builder"
 import { JsonRpc } from "std.jsonrpc"
 import { McpCapabilities, McpEmptyObject, McpServerInfo, McpInitializeResult } from ".arest.mcp.protocol.models"
+import { HttpStatus } from "std.http"
 
 object Initialize {
 
@@ -13,7 +14,7 @@ object Initialize {
         val serverInfo = McpServerInfo(cfg.serverName, cfg.serverVersion)
         val result = McpInitializeResult("2024-11-05", capabilities, serverInfo)
 
-        conn.writeResponse(200, "application/json", rpc.response(result.toJson()))
+        conn.writeResponse(HttpStatus.OK, "application/json", rpc.response(result.toJson()))
         Log.info { "[Arest] MCP Initialize -> 200 OK" }
     }
 }

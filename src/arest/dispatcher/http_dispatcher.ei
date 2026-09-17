@@ -1,4 +1,4 @@
-import { ServerConnection, Request } from "std.http"
+import { ServerConnection, Request, HttpStatus } from "std.http"
 import { Log } from "std.log"
 import { File } from "std.fs"
 
@@ -6,6 +6,7 @@ import { ArestBuilder } from ".arest.server.arest_builder"
 import { ApplicationCall } from ".arest.server.application_call"
 import { RouteMatch, StaticConfig } from ".arest.server.routing"
 import { Mime, MimeType } from ".arest.server.mime"
+
 
 type HttpDispatcher(val builder: ArestBuilder) {
 
@@ -15,7 +16,6 @@ type HttpDispatcher(val builder: ArestBuilder) {
         if (match is RouteMatch) {
             val m = match!!
             val call = ApplicationCall(conn, req, builder, m.pathParams)
-            Log.info { "[Arest] HTTP ${req.method} ${req.path} -> 200 OK" }
             m.route.handler(call, call)
             found = true
         }
@@ -30,14 +30,14 @@ type HttpDispatcher(val builder: ArestBuilder) {
 
         if (found == false) {
             Log.warn { "[Arest] HTTP ${req.method} ${req.path} -> 404 Not Found" }
-            conn.writeResponse(404, "text/plain", "Not Found")
+            conn.writeResponse(HttpStatus.NOT_FOUND, "text/plain", "Not Found")
         }
     }
 
     fun serveHealth(conn: ServerConnection, req: Request): Bool {
         if (builder.healthEnabled && req.method == "GET" && req.path == builder.healthPath) {
             Log.info { "[Arest] HTTP GET ${builder.healthPath} -> 200 OK" }
-            conn.writeResponse(200, "application/json", "{\"status\":\"ok\"}")
+            conn.writeResponse(HttpStatus.OK, "application/json", "{\"status\":\"ok\"}")
             return true
         }
         return false
@@ -61,12 +61,12 @@ type HttpDispatcher(val builder: ArestBuilder) {
                             val content = File.read(filePath)
                             val mime = Mime.headerValue(Mime.resolve(filePath))
                             Log.info { "[Arest] HTTP GET ${req.path} -> 200 OK" }
-                            conn.writeResponse(200, mime, content)
+                            conn.writeResponse(HttpStatus.OK, mime, content)
                             return true
                         }
                     } else {
                         Log.warn { "[Arest] HTTP GET ${req.path} -> 403 Traversal Denied" }
-                        conn.writeResponse(403, "text/plain", "Forbidden")
+                        conn.writeResponse(HttpStatus.FORBIDDEN, "text/plain", "Forbidden")
                         return true
                     }
                 }

@@ -4,6 +4,8 @@ import { NativeMemory } from "std.core"
 import { MutableMap, MutableList } from "std.collections"
 import { ArestBuilder } from ".arest.server.arest_builder"
 import { Cookies } from ".arest.server.cookies"
+import { HttpStatus } from "std.http"
+
 
 type ApplicationCall(
     val conn: ServerConnection,
@@ -36,24 +38,25 @@ type ApplicationCall(
         if (header == null) {
             return null
         }
-        return Cookies.parse(header!!, name)
+        return Cookies.parse(header, name)
     }
 
     // 302 redirect with a Location header (htmx requests should use HX-Redirect instead).
-    fun respondRedirect(url: String, status: Int = 302) {
+    fun respondRedirect(url: String, status: HttpStatus = HttpStatus.FOUND) {
         responseHeader("Location", url)
         respond("", status, "text/plain")
     }
 
-    fun respond(body: String, status: Int, contentType: String) {
+    fun respond(body: String, status: HttpStatus, contentType: String) {
+        Log.info { "[Arest] HTTP ${request.method} ${request.path} -> $status" }
         conn.writeResponseWithHeaders(status, contentType, body, pendingHeaders.freeze())
     }
 
-    fun respond(status: Int = 204) {
-        conn.writeResponseWithHeaders(status, server.negotiation.contentType(), "", pendingHeaders.freeze())
+    fun respond(status: HttpStatus = HttpStatus.NO_CONTENT) {
+        respond("", status, server.negotiation.contentType())
     }
 
-    fun respond(value: Serializable, status: Int = 200) {
+    fun respond(value: Serializable, status: HttpStatus = HttpStatus.OK) {
         val body = server.negotiation.serialize(value)
         respond(body, status, server.negotiation.contentType())
     }
@@ -110,19 +113,19 @@ type ApplicationCall(
         return formParams().get(name)
     }
 
-    fun respondText(body: String, status: Int = 200) {
+    fun respondText(body: String, status: HttpStatus = HttpStatus.OK) {
         respond(body, status, "text/plain; charset=UTF-8")
     }
 
-    fun respondHtml(body: String, status: Int = 200) {
+    fun respondHtml(body: String, status: HttpStatus = HttpStatus.OK) {
         respond(body, status, "text/html; charset=UTF-8")
     }
 
-    fun respondHtml(bodyContent: () -> String, status: Int = 200) {
+    fun respondHtml(bodyContent: () -> String, status: HttpStatus = HttpStatus.OK) {
         respond(bodyContent(), status, "text/html; charset=UTF-8")
     }
 
-    fun respondJson(body: String, status: Int = 200) {
+    fun respondJson(body: String, status: HttpStatus = HttpStatus.OK) {
         respond(body, status, "application/json; charset=UTF-8")
     }
 

@@ -39,7 +39,7 @@ type HttpResponse(
     fun headerOrDefault(name: String, defaultVal: String): String {
         val h = this.header(name)
         if (h != null) {
-            return h!!
+            return h
         }
         return defaultVal
     }
