@@ -5,7 +5,7 @@ import { File } from "std.fs"
 import { ArestBuilder } from ".arest.server.arest_builder"
 import { ApplicationCall } from ".arest.server.application_call"
 import { RouteMatch, StaticConfig } from ".arest.server.routing"
-import { Mime, MimeType } from ".arest.server.mime"
+import { Mime } from ".arest.server.mime"
 
 
 type HttpDispatcher(val builder: ArestBuilder) {

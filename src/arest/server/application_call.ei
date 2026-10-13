@@ -78,7 +78,7 @@ type ApplicationCall(
         val map = MutableMap<String, String>()
         val raw = this.request.body
         if (raw == "") {
-            return map
+            return map.freeze()
         }
         var rest = raw
         var searching = true
