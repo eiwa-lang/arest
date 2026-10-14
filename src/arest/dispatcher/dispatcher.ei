@@ -1,4 +1,6 @@
 import { ServerConnection } from "std.http"
+import { HttpStatus } from "std.http"
+import { Log } from "std.log"
 
 import { ArestBuilder } from ".arest.server.arest_builder"
 import { HttpDispatcher } from ".arest.dispatcher.http_dispatcher"
@@ -10,12 +12,21 @@ type RequestDispatcher(
     val mcp: McpDispatcher
 ) {
     fun dispatch(conn: ServerConnection) {
-        val req = conn.readRequest()
+        // A route must never take the server down: any unhandled error
+        // becomes a 500 on this connection only.
+        try {
+            val req = conn.readRequest()
 
-        if (req.path == builder.mcpBuilder.path) {
-            mcp.dispatch(conn, req)
-        } else {
-            http.dispatch(conn, req)
+            if (req.path == builder.mcpBuilder.path) {
+                mcp.dispatch(conn, req)
+            } else {
+                http.dispatch(conn, req)
+            }
+        } catch (e: Exception) {
+            Log.error(e) { "[Arest] Unhandled route error" }
+            try {
+                conn.writeResponse(HttpStatus.INTERNAL_SERVER_ERROR, "text/plain", "Internal Server Error")
+            }
         }
         conn.close()
     }

@@ -1,0 +1,51 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+
+fun boom(): String {
+    throw Exception("simulated route failure")
+}
+
+test "arest.server: throwing route responds 500 and server stays up" {
+    val port = 19710
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/boom") {
+                    val v = boom()
+                    respondText(v)
+                }
+
+                get("/ping") {
+                    respondText("pong")
+                }
+
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19710")
+    }
+
+    // 1. Throwing route becomes 500, not a dropped connection
+    val resBoom = client.get("/boom")
+    assert(resBoom.status == 500, "Throwing route should respond 500")
+
+    // 2. Server still serves after the failure
+    val resPing = client.get("/ping")
+    assert(resPing.ok, "Server should stay up after a route failure")
+    assert(resPing.body() == "pong")
+
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    serverThread.join()
+}
