@@ -12,7 +12,8 @@ type ApplicationCall(
     val request: Request,
     val server: ArestBuilder,
     val pathParams: MutableMap<String, String> = MutableMap<String, String>(),
-    val pendingHeaders: MutableList<String> = MutableList<String>()
+    val pendingHeaders: MutableList<String> = MutableList<String>(),
+    var sseOpen: Bool = false
 ) {
 
     // Queues a raw response header line (e.g. "HX-Redirect: /home").

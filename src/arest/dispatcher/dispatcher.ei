@@ -14,20 +14,28 @@ type RequestDispatcher(
     fun dispatch(conn: ServerConnection) {
         // A route must never take the server down: any unhandled error
         // becomes a 500 on this connection only.
+        // A hijacked connection (SSE) stays open: its handler owns the
+        // socket and must finish with closeSse().
         try {
             val req = conn.readRequest()
 
             if (req.path == builder.mcpBuilder.path) {
                 mcp.dispatch(conn, req)
+                conn.close()
             } else {
-                http.dispatch(conn, req)
+                val hijacked = http.dispatch(conn, req)
+                if (hijacked == false) {
+                    conn.close()
+                }
             }
         } catch (e: Exception) {
             Log.error(e) { "[Arest] Unhandled route error" }
             try {
                 conn.writeResponse(HttpStatus.INTERNAL_SERVER_ERROR, "text/plain", "Internal Server Error")
             }
+            try {
+                conn.close()
+            }
         }
-        conn.close()
     }
 }

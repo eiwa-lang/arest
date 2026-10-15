@@ -1,0 +1,57 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+import { chunkSizeHex } from ".arest.server.sse"
+
+test "arest.server.sse: chunk size is lowercase hex" {
+    assert(chunkSizeHex(0) == "0")
+    assert(chunkSizeHex(5) == "5")
+    assert(chunkSizeHex(15) == "f")
+    assert(chunkSizeHex(16) == "10")
+    assert(chunkSizeHex(255) == "ff")
+    assert(chunkSizeHex(256) == "100")
+}
+
+test "arest.server.sse: streams events then closes" {
+    val port = 19740
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/stream") {
+                    startSse()
+                    sendSse("hello-1")
+                    sendSse("hello-2", event = "ping")
+                    sendSseComment("hb")
+                    closeSse()
+                }
+
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19740")
+    }
+
+    val res = client.get("/stream")
+    assert(res.ok, "GET /stream should be 200")
+    val ctype = res.header("Content-Type")
+    assert(ctype != null && ctype!!.contains("text/event-stream"))
+    val body = res.body()
+    assert(body.contains("data: hello-1\n\n"))
+    assert(body.contains("event: ping\ndata: hello-2\n\n"))
+    assert(body.contains(": hb\n\n"))
+
+    // Server still serves normal routes after a hijacked connection.
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    serverThread.join()
+}

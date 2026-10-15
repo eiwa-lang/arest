@@ -1,0 +1,71 @@
+import { ApplicationCall } from ".arest.server.application_call"
+
+// Server-Sent Events over Transfer-Encoding: chunked (RFC 9112 §7.1).
+//
+// Raw framing lives here (not in std.http) so no toolchain rebuild is
+// needed: the socket is written directly. A handler hijacks its
+// connection with startSse(), pushes frames with sendSse*(), and MUST
+// finish with closeSse() — the dispatcher will not close a hijacked
+// connection.
+
+// Chunk size in lowercase hex without leading zeros ("0" for 0).
+fun chunkSizeHex(value: Int): String {
+    val digits = "0123456789abcdef"
+    if (value == 0) {
+        return "0"
+    }
+    var hex = ""
+    var rest = value
+    while (rest > 0) {
+        val d = rest - (rest / 16) * 16
+        hex = digits.substring(d, d + 1) + hex
+        rest = rest / 16
+    }
+    return hex
+}
+
+// Hijacks the connection: writes SSE headers (200, text/event-stream,
+// no-cache, chunked, keep-alive) plus any headers queued via
+// responseHeader()/cookies, and marks the call so the dispatcher
+// leaves the socket open.
+fun ApplicationCall.startSse() {
+    var head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n"
+    var i = 0
+    while (i < this.pendingHeaders.size()) {
+        head = head + this.pendingHeaders.get(i) + "\r\n"
+        i = i + 1
+    }
+    head = head + "\r\n"
+    this.conn.sock.write(head)
+    this.sseOpen = true
+}
+
+// One raw chunked frame.
+fun ApplicationCall.sendChunk(data: String) {
+    this.conn.sock.write("${chunkSizeHex(data.length)}\r\n$data\r\n")
+}
+
+// A single SSE message frame. `event` sets the named-event field,
+// `id` sets the last-event-id field for client reconnects.
+fun ApplicationCall.sendSse(data: String, event: String? = null, id: String? = null) {
+    var payload = ""
+    if (event != null) {
+        payload = payload + "event: ${event}\n"
+    }
+    if (id != null) {
+        payload = payload + "id: ${id}\n"
+    }
+    payload = payload + "data: $data\n\n"
+    this.sendChunk(payload)
+}
+
+// SSE comment frame — a protocol-level heartbeat (EventSource ignores it).
+fun ApplicationCall.sendSseComment(comment: String) {
+    this.sendChunk(": $comment\n\n")
+}
+
+// Terminates the chunked stream and closes the socket.
+fun ApplicationCall.closeSse() {
+    this.conn.sock.write("0\r\n\r\n")
+    this.conn.close()
+}
