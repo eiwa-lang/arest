@@ -1,0 +1,196 @@
+import { NativeMultipart } from ".arest.server.multipart.native"
+
+// Binary-safe multipart/form-data toolkit (RFC 7578).
+//
+// File bytes travel as opaque Strings (ptr + length): NEVER run str*-based
+// ops (indexOf, substring, split) on them — memsearch + slice only.
+// Part headers are ASCII and parse with the normal String API.
+
+// One parsed body part. `data` is opaque bytes for file parts.
+type MultipartPart(
+    val name: String,
+    val filename: String,
+    val contentType: String,
+    val data: String
+)
+
+// One file to send (builder input). `data` is opaque bytes.
+type MultipartFile(
+    val field: String,
+    val filename: String,
+    val contentType: String,
+    val data: String
+)
+
+fun multipartBoundary(contentType: String): String {
+    val key = "boundary="
+    val idx = contentType.indexOf(key)
+    if (idx < 0) {
+        return ""
+    }
+    var boundary = contentType.substring(idx + key.length, contentType.length).trim()
+    if (boundary.startsWith("\"") && boundary.endsWith("\"") && boundary.length >= 2) {
+        boundary = boundary.substring(1, boundary.length - 1)
+    }
+    val semi = boundary.indexOf(";")
+    if (semi >= 0) {
+        boundary = boundary.substring(0, semi).trim()
+    }
+    return boundary
+}
+
+// Binary-safe needle search: memmem, works past embedded NULs
+// (strstr would stop at the first one).
+fun memsearch(haystack: String, needle: String, start: Int): Int {
+    if (start >= haystack.length) {
+        return -1
+    }
+    return NativeMultipart.memmem(haystack.ptr!!, haystack.length, start, needle.ptr!!, needle.length)
+}
+
+fun partName(headers: String): String {
+    return headerParam(headers, "name=\"")
+}
+
+fun partFilename(headers: String): String {
+    return headerParam(headers, "filename=\"")
+}
+
+fun headerParam(headers: String, key: String): String {
+    val idx = headers.indexOf(key)
+    if (idx < 0) {
+        return ""
+    }
+    val after = headers.substring(idx + key.length, headers.length)
+    val end = after.indexOf("\"")
+    if (end < 0) {
+        return ""
+    }
+    return after.substring(0, end)
+}
+
+fun partContentType(headers: String): String {
+    val lower = headers.lowercase()
+    val key = "content-type:"
+    val idx = lower.indexOf(key)
+    if (idx < 0) {
+        return ""
+    }
+    val after = lower.substring(idx + key.length, lower.length).trim()
+    val end = after.indexOf("\r\n")
+    if (end < 0) {
+        return after
+    }
+    return after.substring(0, end).trim()
+}
+
+// Parses all parts. Framing follows the spec: the first delimiter opens the
+// body, every later one is CRLF-prefixed; the closing delimiter ends it.
+// A bare delimiter inside binary data does NOT split (CRLF required).
+fun parseParts(contentType: String, body: String): List<MultipartPart> {
+    val parts = MutableList<MultipartPart>()
+    val boundary = multipartBoundary(contentType)
+    if (boundary == "" || body == "") {
+        return parts.freeze()
+    }
+    val delimiter = "--" + boundary
+    val delimiterLine = "\r\n" + delimiter
+    val headerEnd = "\r\n\r\n"
+    val closeMark = "--"
+
+    var cursor = 0
+    var first = true
+    var searching = true
+    while (searching) {
+        // Only the first delimiter is searched: after each part the cursor
+        // already sits on the next part's opening delimiter.
+        if (first) {
+            val d = memsearch(body, delimiter, cursor)
+            if (d < 0) {
+                searching = false
+            } else {
+                cursor = d + delimiter.length
+                first = false
+            }
+        }
+        if (searching) {
+            // Closing is delimiter + "--"; an opening delimiter merely
+            // starts with "--", so the short check would stop early.
+            if (body.slice(cursor, cursor + delimiter.length + 2) == delimiter + closeMark) {
+                searching = false
+            } else {
+                if (body.slice(cursor, cursor + 2) == "\r\n") {
+                    cursor = cursor + 2
+                }
+                val h = memsearch(body, headerEnd, cursor)
+                if (h < 0) {
+                    searching = false
+                } else {
+                    val headers = body.slice(cursor, h)
+                    val dataStart = h + headerEnd.length
+                    val n = memsearch(body, delimiterLine, dataStart)
+                    if (n < 0) {
+                        searching = false
+                    } else {
+                        parts.add(MultipartPart(
+                            name = partName(headers),
+                            filename = partFilename(headers),
+                            contentType = partContentType(headers),
+                            data = body.slice(dataStart, n)
+                        ))
+                        cursor = n + 2
+                    }
+                }
+            }
+        }
+    }
+    return parts.freeze()
+}
+
+// Builds a request body: fields as text parts, files as binary parts.
+// Assembly is memcpy-based, so file bytes survive verbatim.
+fun buildMultipart(boundary: String, fields: Map<String, String>, files: List<MultipartFile>): String {
+    val delimiter = "--" + boundary
+    val crlf = "\r\n"
+    val chunks = MutableList<String>()
+
+    var i = 0
+    while (i < fields.entries.size()) {
+        var curr = fields.entries.get(i)
+        while (curr != null) {
+            val k = curr!!.key
+            val v = curr!!.value
+            chunks.add(delimiter + crlf + "Content-Disposition: form-data; name=\"" + k + "\"" + crlf + crlf + v + crlf)
+            curr = curr!!.next
+        }
+        i = i + 1
+    }
+
+    var f = 0
+    while (f < files.size()) {
+        val file = files[f]
+        chunks.add(delimiter + crlf + "Content-Disposition: form-data; name=\"" + file.field + "\"; filename=\"" + file.filename + "\"" + crlf + "Content-Type: " + file.contentType + crlf + crlf)
+        chunks.add(file.data)
+        chunks.add(crlf)
+        f = f + 1
+    }
+    chunks.add(delimiter + "--" + crlf)
+
+    var total = 0
+    var j = 0
+    while (j < chunks.size()) {
+        total = total + chunks[j].length
+        j = j + 1
+    }
+    val buf = Standard.gcMalloc(total + 1)
+    var off = 0
+    j = 0
+    while (j < chunks.size()) {
+        val c = chunks[j]
+        Standard.memcpy(buf + off, c.ptr!!, c.length)
+        off = off + c.length
+        j = j + 1
+    }
+    NativeMemory.writeByte(buf, total, 0)
+    return String(buf, total)
+}

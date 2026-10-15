@@ -1,0 +1,147 @@
+import { assert } from "std.core"
+import { parseParts, buildMultipart, memsearch, multipartBoundary, MultipartFile, MultipartPart } from ".arest.server.multipart.multipart"
+
+fun findPart(parts: List<MultipartPart>, name: String): MultipartPart? {
+    var i = 0
+    while (i < parts.size()) {
+        if (parts[i].name == name) {
+            return parts[i]
+        }
+        i = i + 1
+    }
+    return null
+}
+
+// 0..255 — every possible byte exactly once (NUL included).
+fun binaryFixture(): String {
+    val len = 256
+    val buf = Standard.gcMalloc(len + 1)
+    var i = 0
+    while (i < len) {
+        NativeMemory.writeByte(buf, i, i)
+        i = i + 1
+    }
+    NativeMemory.writeByte(buf, len, 0)
+    return String(buf, len)
+}
+
+fun browserBody(boundary: String): String {
+    val d = "--" + boundary
+    return d + "\r\n" +
+        "Content-Disposition: form-data; name=\"media\"; filename=\"\"\r\n" +
+        "Content-Type: application/octet-stream\r\n" +
+        "\r\n" +
+        "\r\n" +
+        d + "\r\n" +
+        "Content-Disposition: form-data; name=\"caption\"\r\n" +
+        "\r\n" +
+        "hello district\r\n" +
+        d + "\r\n" +
+        "Content-Disposition: form-data; name=\"privacy\"\r\n" +
+        "\r\n" +
+        "MUTUALS\r\n" +
+        d + "--\r\n"
+}
+
+test "multipart: memsearch finds needles past NULs (strstr would not)" {
+    val buf = Standard.gcMalloc(10)
+    NativeMemory.writeByte(buf, 0, 97)
+    NativeMemory.writeByte(buf, 1, 98)
+    NativeMemory.writeByte(buf, 2, 0)
+    NativeMemory.writeByte(buf, 3, 99)
+    NativeMemory.writeByte(buf, 4, 100)
+    NativeMemory.writeByte(buf, 5, 69)
+    NativeMemory.writeByte(buf, 6, 70)
+    NativeMemory.writeByte(buf, 7, 71)
+    NativeMemory.writeByte(buf, 8, 72)
+    NativeMemory.writeByte(buf, 9, 0)
+    val hay = String(buf, 9)
+    assert(memsearch(hay, "EFGH", 0) == 5)
+    assert(memsearch(hay, "zzz", 0) == -1)
+}
+
+test "multipart: boundary extracted bare and quoted" {
+    assert(multipartBoundary("multipart/form-data; boundary=abc123") == "abc123")
+    assert(multipartBoundary("multipart/form-data; boundary=\"abc123\"") == "abc123")
+    assert(multipartBoundary("text/plain") == "")
+}
+
+test "multipart: ASCII fields parse, empty file part kept with blank data" {
+    val ct = "multipart/form-data; boundary=----drawer7"
+    val parts = parseParts(ct, browserBody("----drawer7"))
+    assert(parts.size() == 3)
+    assert(parts[0].name == "media")
+    assert(parts[0].filename == "")
+    assert(parts[0].data == "")
+    assert(parts[1].name == "caption")
+    assert(parts[1].data == "hello district")
+    assert(parts[2].name == "privacy")
+    assert(parts[2].data == "MUTUALS")
+}
+
+test "multipart: binary round-trips byte-exact through build and parse" {
+    val bytes = binaryFixture()
+    val files = [MultipartFile(field = "media", filename = "photo.jpg", contentType = "image/jpeg", data = bytes)]
+    val fields = MutableMap<String, String>()
+    fields.put("caption", "with photo")
+    fields.put("folder", "posts")
+    val body = buildMultipart("----bound9", fields.freeze(), files)
+    assert(memsearch(body, bytes, 0) >= 0)
+
+    val parts = parseParts("multipart/form-data; boundary=----bound9", body)
+    assert(parts.size() == 3)
+    // Map order is not insertion order — look parts up by name.
+    val caption = findPart(parts, "caption")
+    val folder = findPart(parts, "folder")
+    val media = findPart(parts, "media")
+    assert(caption != null && caption!!.data == "with photo")
+    assert(folder != null && folder!!.data == "posts")
+    assert(media != null)
+    assert(media!!.filename == "photo.jpg")
+    assert(media!!.contentType == "image/jpeg")
+    assert(media!!.data.length == 256)
+    assert(NativeMemory.readByte(media!!.data.ptr!!, 0) == 0)
+    assert(NativeMemory.readByte(media!!.data.ptr!!, 1) == 1)
+    assert(NativeMemory.readByte(media!!.data.ptr!!, 255) == 255)
+}
+
+fun bigBinaryFixture(len: Int): String {
+    val buf = Standard.gcMalloc(len + 1)
+    var i = 0
+    while (i < len) {
+        NativeMemory.writeByte(buf, i, i - (i / 256) * 256)
+        i = i + 1
+    }
+    NativeMemory.writeByte(buf, len, 0)
+    return String(buf, len)
+}
+
+test "multipart: 60KB dual-file body survives build and parse" {
+    val photo = bigBinaryFixture(60000)
+    assert(photo.length == 60000)
+    val files = MutableList<MultipartFile>()
+    files.add(MultipartFile(field = "media", filename = "photo.bin", contentType = "image/jpeg", data = photo))
+    files.add(MultipartFile(field = "raw_media", filename = "photo.bin", contentType = "image/jpeg", data = photo))
+    val fields = MutableMap<String, String>()
+    fields.put("caption", "photo post")
+    fields.put("privacy", "PUBLIC")
+    fields.put("folder", "posts")
+    val body = buildMultipart("----bigbound9", fields.freeze(), files.freeze())
+    val parts = parseParts("multipart/form-data; boundary=----bigbound9", body)
+    assert(parts.size() == 5)
+    val media = findPart(parts, "media")
+    assert(media != null && media!!.data.length == 60000)
+    assert(NativeMemory.readByte(media!!.data.ptr!!, 0) == 0)
+    assert(NativeMemory.readByte(media!!.data.ptr!!, 1000) == 232)
+    assert(NativeMemory.readByte(media!!.data.ptr!!, 59999) == 95)
+    val raw = findPart(parts, "raw_media")
+    assert(raw != null && raw!!.data.length == 60000)
+}
+
+test "multipart: empty body and missing boundary parse to nothing" {
+
+    val parts = parseParts("multipart/form-data; boundary=----x", "")
+    assert(parts.size() == 0)
+    val noboundary = parseParts("text/plain", "hello")
+    assert(noboundary.size() == 0)
+}

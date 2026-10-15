@@ -1,0 +1,8 @@
+// multipart/native.ei — vendored C helpers (libc only, no third-party linkage).
+
+@Source("./runtime/third_party/multipart/multipart_helpers.c")
+lib NativeMultipart {
+
+    @Alias("eiwa_memmem")
+    fun memmem(haystack: Pointer, haystackLen: Int, start: Int, needle: Pointer, needleLen: Int): Int
+}
