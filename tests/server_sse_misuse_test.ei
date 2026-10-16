@@ -1,0 +1,44 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs } from "std.time"
+import { arest } from ".arest.arest"
+import { arestClient } from ".arest.client.client"
+import { CurlEngine } from ".arest.client.engine.curl_engine"
+import { sse } from ".arest.server.sse"
+
+// A throw inside sse { } closes the connection instead of subscribing it
+// (a dead replay must not leave a subscribed zombie behind).
+test "arest.server.sse: throw inside sse closes the connection" {
+    val port = 19751
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/boom") {
+                    sse {
+                        send("before-boom")
+                        throw Exception("replay failed")
+                    }
+                }
+
+                get("/stop") {
+                    respondText("bye")
+                    server.shutdown()
+                }
+            }
+        }
+    }
+
+    sleepMs(80)
+    val client = arestClient(CurlEngine()) {
+        baseUrl("http://127.0.0.1:19751")
+    }
+
+    val res = client.get("/boom")
+    assert(res.ok, "headers already sent, status stays 200")
+    assert(res.body().contains("before-boom"), "frames sent before the throw arrive")
+
+    // The failed stream must not pin its worker: the server stays responsive.
+    val resStop = client.get("/stop")
+    assert(resStop.ok)
+    serverThread.join()
+}

@@ -15,7 +15,7 @@ type RequestDispatcher(
         // A route must never take the server down: any unhandled error
         // becomes a 500 on this connection only.
         // A hijacked connection (SSE) stays open: its handler owns the
-        // socket and must finish with closeSse().
+        // socket and must finish with close().
         try {
             val req = conn.readRequest()
 

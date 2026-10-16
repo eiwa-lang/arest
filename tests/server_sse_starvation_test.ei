@@ -3,7 +3,7 @@ import { Threads } from "std.thread"
 import { sleepMs, nowMillis } from "std.time"
 import { Socket, SocketClient } from "std.net"
 import { arest } from ".arest.arest"
-import { startSse, SseHub } from ".arest.server.sse"
+import { sse } from ".arest.server.sse"
 
 // Open SSE streams must not pin worker threads. Each stream below is held open
 // by a subscription (like a browser EventSource); the handler returns at once.
@@ -37,8 +37,9 @@ test "arest.server.sse: open streams do not starve ordinary requests" {
         arest(port) {
             routing {
                 get("/stream") {
-                    startSse()
-                    SseHub.subscribe(this)
+                    sse {
+                        send("welcome")
+                    }
                 }
 
                 get("/ping") {

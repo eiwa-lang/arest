@@ -4,7 +4,7 @@ import { sleepMs } from "std.time"
 import { arest } from ".arest.arest"
 import { arestClient } from ".arest.client.client"
 import { CurlEngine } from ".arest.client.engine.curl_engine"
-import { chunkSizeHex } from ".arest.server.sse"
+import { chunkSizeHex, sse } from ".arest.server.sse"
 
 test "arest.server.sse: chunk size is lowercase hex" {
     assert(chunkSizeHex(0) == "0")
@@ -21,11 +21,12 @@ test "arest.server.sse: streams events then closes" {
         arest(port) {
             routing {
                 get("/stream") {
-                    startSse()
-                    sendSse("hello-1")
-                    sendSse("hello-2", event = "ping")
-                    sendSseComment("hb")
-                    closeSse()
+                    sse {
+                        send("hello-1")
+                        send("hello-2", event = "ping")
+                        sendComment("hb")
+                        close()
+                    }
                 }
 
                 get("/stop") {

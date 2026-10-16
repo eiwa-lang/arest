@@ -3,15 +3,6 @@ import { MutableList } from "std.collections"
 import { Mutex, sync } from "std.thread"
 import { sleepMs } from "std.time"
 
-// Server-Sent Events over Transfer-Encoding: chunked (RFC 9112 §7.1).
-//
-// Raw framing lives here (not in std.http) so no toolchain rebuild is
-// needed: the socket is written directly. A handler hijacks its
-// connection with startSse(), pushes frames with sendSse*(), and MUST
-// finish with closeSse() — the dispatcher will not close a hijacked
-// connection.
-
-// Chunk size in lowercase hex without leading zeros ("0" for 0).
 fun chunkSizeHex(value: Int): String {
     val digits = "0123456789abcdef"
     if (value == 0) {
@@ -27,61 +18,43 @@ fun chunkSizeHex(value: Int): String {
     return hex
 }
 
-// Hijacks the connection: writes SSE headers (200, text/event-stream,
-// no-cache, chunked, keep-alive) plus any headers queued via
-// responseHeader()/cookies, and marks the call so the dispatcher
-// leaves the socket open.
-fun ApplicationCall.startSse() {
-    var head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n"
-    var i = 0
-    while (i < this.pendingHeaders.size()) {
-        head = head + this.pendingHeaders.get(i) + "\r\n"
-        i = i + 1
+type ApplicationSseCall(val call: ApplicationCall) {
+    fun send(data: String, event: String? = null, id: String? = null) {
+        SseHub.sendChecked(this.call, SseHub.format(data, event, id))
     }
-    head = head + "\r\n"
-    this.conn.sock.write(head)
-    this.sseOpen = true
-}
 
-// One raw chunked frame.
-fun ApplicationCall.sendChunk(data: String) {
-    this.conn.sock.write("${chunkSizeHex(data.length)}\r\n$data\r\n")
-}
-
-// A single SSE message frame. `event` sets the named-event field,
-// `id` sets the last-event-id field for client reconnects.
-fun ApplicationCall.sendSse(data: String, event: String? = null, id: String? = null) {
-    var payload = ""
-    if (event != null) {
-        payload = payload + "event: ${event}\n"
+    fun sendComment(comment: String) {
+        SseHub.sendChecked(this.call, ": $comment\n\n")
     }
-    if (id != null) {
-        payload = payload + "id: ${id}\n"
+
+    fun close() {
+        SseHub.close(this.call)
     }
-    payload = payload + "data: $data\n\n"
-    this.sendChunk(payload)
+
+    fun header(name: String): String? {
+        return this.call.header(name)
+    }
+
+    fun query(name: String): String? {
+        return this.call.query(name)
+    }
 }
 
-// SSE comment frame — a protocol-level heartbeat (EventSource ignores it).
-fun ApplicationCall.sendSseComment(comment: String) {
-    this.sendChunk(": $comment\n\n")
+// The block must return at once: looping here pins one worker per open
+// stream and starves the pool. A block that closes skips subscribing;
+// a block that throws closes instead of subscribing.
+fun ApplicationCall.sse(init: ApplicationSseCall.() -> Void) {
+    SseHub.hijack(this)
+    try {
+        init(ApplicationSseCall(this))
+        if (this.sseOpen) {
+            SseHub.subscribe(this)
+        }
+    } catch (e: Throwable) {
+        SseHub.close(this)
+    }
 }
 
-// Terminates the chunked stream and closes the socket.
-fun ApplicationCall.closeSse() {
-    this.conn.sock.write("0\r\n\r\n")
-    this.conn.close()
-}
-
-// Shared hub for long-lived SSE streams.
-//
-// Rationale: a stream handler must NOT loop on its worker (each open
-// EventSource would pin one worker thread; 10 reloads starve a 10-worker
-// pool and every later request hangs). Instead the handler calls startSse()
-// and returns at once, handing the socket to the hub. One cooperative pump
-// task sends heartbeats; broadcasts fan out to every subscriber. Frame
-// writes are serialized by writeLock; dead sockets are dropped on write
-// failure (EventSource reconnects on its own).
 type SseSubscription(val call: ApplicationCall)
 
 object SseHub {
@@ -92,7 +65,39 @@ object SseHub {
     var pumpRunning: Bool = true
     var heartbeatMs: Int = 14000
 
+    fun hijack(call: ApplicationCall) {
+        if (call.sseOpen) {
+            throw Exception("sse hijack twice on the same connection")
+        }
+        var head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n"
+        var i = 0
+        while (i < call.pendingHeaders.size()) {
+            head = head + call.pendingHeaders.get(i) + "\r\n"
+            i = i + 1
+        }
+        head = head + "\r\n"
+        call.conn.sock.write(head)
+        call.sseOpen = true
+    }
+
+    // Clears sseOpen so sse { } skips subscribing a finished stream.
+    fun close(call: ApplicationCall) {
+        unsubscribe(call)
+        call.conn.sock.write("0\r\n\r\n")
+        call.conn.close()
+        call.sseOpen = false
+    }
+
+    fun sendChecked(call: ApplicationCall, payload: String) {
+        if (!sendTo(call, payload)) {
+            throw Exception("SSE client disconnected")
+        }
+    }
+
     fun subscribe(call: ApplicationCall) {
+        if (!call.sseOpen) {
+            throw Exception("SseHub.subscribe without sse hijack")
+        }
         var start = false
         sync(SseHub.lock) {
             SseHub.subs.add(SseSubscription(call))
@@ -138,6 +143,14 @@ object SseHub {
     }
 
     fun broadcast(data: String, event: String? = null, id: String? = null) {
+        SseHub.pushAll(SseHub.format(data, event, id))
+    }
+
+    fun heartbeat() {
+        SseHub.pushAll(": hb\n\n")
+    }
+
+    fun format(data: String, event: String? = null, id: String? = null): String {
         var payload = ""
         if (event != null) {
             payload = payload + "event: ${event}\n"
@@ -146,15 +159,22 @@ object SseHub {
             payload = payload + "id: ${id}\n"
         }
         payload = payload + "data: $data\n\n"
-        SseHub.pushAll(payload)
+        return payload
     }
 
-    fun heartbeat() {
-        SseHub.pushAll(": hb\n\n")
+    // Returns false when the peer is gone.
+    fun sendTo(call: ApplicationCall, payload: String): Bool {
+        val frame = "${chunkSizeHex(payload.length)}\r\n$payload\r\n"
+        var ok = false
+        sync(SseHub.writeLock) {
+            val n = call.conn.sock.write(frame)
+            ok = n == frame.length
+            true
+        }
+        return ok
     }
 
     fun pushAll(payload: String) {
-        val frame = "${chunkSizeHex(payload.length)}\r\n$payload\r\n"
         val live: MutableList<SseSubscription> = MutableList<SseSubscription>()
         sync(SseHub.lock) {
             var i = 0
@@ -167,21 +187,11 @@ object SseHub {
         var j = 0
         while (j < live.size()) {
             val sub = live[j]
-            if (!SseHub.pushOne(sub, frame)) {
+            if (!SseHub.sendTo(sub.call, payload)) {
                 SseHub.drop(sub.call.conn.sock.fd)
             }
             j = j + 1
         }
-    }
-
-    fun pushOne(sub: SseSubscription, frame: String): Bool {
-        var ok = false
-        sync(SseHub.writeLock) {
-            val n = sub.call.conn.sock.write(frame)
-            ok = n == frame.length
-            true
-        }
-        return ok
     }
 
     fun drop(fd: Int) {
