@@ -11,8 +11,7 @@ type EchoPayload(val greeting: String, val count: Int) : Serializable + Json
 
 test "arest.client: curl engine real http get with local server" {
     val server = TCPServer()
-    val bound = server.bind(19572)
-    assert(bound, "local test server should bind")
+    server.bind(19572)
 
     val serverThread = Threads.spawn {
         val client = server.accept()
@@ -48,8 +47,7 @@ test "arest.client: curl engine real http get with local server" {
 
 test "arest.client: curl engine real http post with json payload" {
     val server = TCPServer()
-    val bound = server.bind(19573)
-    assert(bound, "local post server should bind")
+    server.bind(19573)
 
     val serverThread = Threads.spawn {
         val client = server.accept()

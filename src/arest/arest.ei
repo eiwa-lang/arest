@@ -12,33 +12,30 @@ fun arest(port: Int, init: ArestBuilder.() -> Void) {
     init(builder)
     val server = Server()
     builder.server = server
-    if (server.bind(port)) {
-        Log.info { "[Arest] Server listening on http://localhost:$port ..." }
-        val dispatcher = RequestDispatcher(builder, HttpDispatcher(builder), McpDispatcher(builder))
-        val disp = builder.workerDispatcher
-        while (builder.running) {
-            try {
-                val conn = server.accept()
-                if (builder.running) {
-                    if (conn is ServerConnection) {
-                        task(disp) {
-                            EventLoop.waitReadable(conn.sock.fd)
-                            dispatcher.dispatch(conn)
-                        }
-                    }
-                } else {
-                    if (conn != null) {
-                        conn!!.close()
+    server.bind(port)
+    Log.info { "[Arest] Server listening on http://localhost:$port ..." }
+    val dispatcher = RequestDispatcher(builder, HttpDispatcher(builder), McpDispatcher(builder))
+    val disp = builder.workerDispatcher
+    while (builder.running) {
+        try {
+            val conn = server.accept()
+            if (builder.running) {
+                if (conn is ServerConnection) {
+                    task(disp) {
+                        EventLoop.waitReadable(conn.sock.fd)
+                        dispatcher.dispatch(conn)
                     }
                 }
-            } catch (e) {
-                Log.error(e) { "[Arest] Error processing connection" }
+            } else {
+                if (conn != null) {
+                    conn!!.close()
+                }
             }
+        } catch (e) {
+            Log.error(e) { "[Arest] Error processing connection" }
         }
-
-        server.close()
-        Log.info { "[Arest] Server stopped gracefully." }
-    } else {
-        Log.error { "[Arest] Failed to bind to port $port" }
     }
+
+    server.close()
+    Log.info { "[Arest] Server stopped gracefully." }
 }
