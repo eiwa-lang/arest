@@ -1,5 +1,6 @@
 import { Server, ServerConnection } from "std.http"
 import { Log } from "std.log"
+import { EventLoop } from "std.coroutines"
 
 import { ArestBuilder } from ".arest.server.arest_builder"
 import { RequestDispatcher } from ".arest.dispatcher.dispatcher"
@@ -21,6 +22,7 @@ fun arest(port: Int, init: ArestBuilder.() -> Void) {
                 if (builder.running) {
                     if (conn is ServerConnection) {
                         task(disp) {
+                            EventLoop.waitReadable(conn.sock.fd)
                             dispatcher.dispatch(conn)
                         }
                     }
