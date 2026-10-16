@@ -20,15 +20,15 @@ fun chunkSizeHex(value: Int): String {
 
 type ApplicationSseCall(val call: ApplicationCall) {
     fun send(data: String, event: String? = null, id: String? = null) {
-        SseHub.sendChecked(this.call, SseHub.format(data, event, id))
+        Sse.sendChecked(this.call, Sse.format(data, event, id))
     }
 
     fun sendComment(comment: String) {
-        SseHub.sendChecked(this.call, ": $comment\n\n")
+        Sse.sendChecked(this.call, ": $comment\n\n")
     }
 
     fun close() {
-        SseHub.close(this.call)
+        Sse.close(this.call)
     }
 
     fun header(name: String): String? {
@@ -44,20 +44,20 @@ type ApplicationSseCall(val call: ApplicationCall) {
 // stream and starves the pool. A block that closes skips subscribing;
 // a block that throws closes instead of subscribing.
 fun ApplicationCall.sse(init: ApplicationSseCall.() -> Void) {
-    SseHub.hijack(this)
+    Sse.hijack(this)
     try {
         init(ApplicationSseCall(this))
         if (this.sseOpen) {
-            SseHub.subscribe(this)
+            Sse.subscribe(this)
         }
     } catch (e: Throwable) {
-        SseHub.close(this)
+        Sse.close(this)
     }
 }
 
 type SseSubscription(val call: ApplicationCall)
 
-object SseHub {
+object Sse {
     val lock: Mutex = Mutex()
     val writeLock: Mutex = Mutex()
     val subs: MutableList<SseSubscription> = MutableList<SseSubscription>()
@@ -96,58 +96,58 @@ object SseHub {
 
     fun subscribe(call: ApplicationCall) {
         if (!call.sseOpen) {
-            throw Exception("SseHub.subscribe without sse hijack")
+            throw Exception("Sse.subscribe without sse hijack")
         }
         var start = false
-        sync(SseHub.lock) {
-            SseHub.subs.add(SseSubscription(call))
-            if (!SseHub.pumpStarted) {
-                SseHub.pumpStarted = true
-                SseHub.pumpRunning = true
+        sync(Sse.lock) {
+            Sse.subs.add(SseSubscription(call))
+            if (!Sse.pumpStarted) {
+                Sse.pumpStarted = true
+                Sse.pumpRunning = true
                 start = true
             }
             true
         }
         if (start) {
             task {
-                while (SseHub.pumpRunning) {
-                    sleepMs(SseHub.heartbeatMs)
-                    SseHub.heartbeat()
+                while (Sse.pumpRunning) {
+                    sleepMs(Sse.heartbeatMs)
+                    Sse.heartbeat()
                 }
             }
         }
     }
 
     fun unsubscribe(call: ApplicationCall) {
-        sync(SseHub.lock) {
-            SseHub.dropLocked(call.conn.sock.fd, true)
+        sync(Sse.lock) {
+            Sse.dropLocked(call.conn.sock.fd, true)
             true
         }
     }
 
     fun stop() {
-        sync(SseHub.lock) {
-            SseHub.pumpRunning = false
-            SseHub.pumpStarted = false
+        sync(Sse.lock) {
+            Sse.pumpRunning = false
+            Sse.pumpStarted = false
             true
         }
     }
 
     fun count(): Int {
         var n = 0
-        sync(SseHub.lock) {
-            n = SseHub.subs.size()
+        sync(Sse.lock) {
+            n = Sse.subs.size()
             true
         }
         return n
     }
 
     fun broadcast(data: String, event: String? = null, id: String? = null) {
-        SseHub.pushAll(SseHub.format(data, event, id))
+        Sse.pushAll(Sse.format(data, event, id))
     }
 
     fun heartbeat() {
-        SseHub.pushAll(": hb\n\n")
+        Sse.pushAll(": hb\n\n")
     }
 
     fun format(data: String, event: String? = null, id: String? = null): String {
@@ -166,7 +166,7 @@ object SseHub {
     fun sendTo(call: ApplicationCall, payload: String): Bool {
         val frame = "${chunkSizeHex(payload.length)}\r\n$payload\r\n"
         var ok = false
-        sync(SseHub.writeLock) {
+        sync(Sse.writeLock) {
             val n = call.conn.sock.write(frame)
             ok = n == frame.length
             true
@@ -176,10 +176,10 @@ object SseHub {
 
     fun pushAll(payload: String) {
         val live: MutableList<SseSubscription> = MutableList<SseSubscription>()
-        sync(SseHub.lock) {
+        sync(Sse.lock) {
             var i = 0
-            while (i < SseHub.subs.size()) {
-                live.add(SseHub.subs[i])
+            while (i < Sse.subs.size()) {
+                live.add(Sse.subs[i])
                 i = i + 1
             }
             true
@@ -187,26 +187,26 @@ object SseHub {
         var j = 0
         while (j < live.size()) {
             val sub = live[j]
-            if (!SseHub.sendTo(sub.call, payload)) {
-                SseHub.drop(sub.call.conn.sock.fd)
+            if (!Sse.sendTo(sub.call, payload)) {
+                Sse.drop(sub.call.conn.sock.fd)
             }
             j = j + 1
         }
     }
 
     fun drop(fd: Int) {
-        sync(SseHub.lock) {
-            SseHub.dropLocked(fd, true)
+        sync(Sse.lock) {
+            Sse.dropLocked(fd, true)
             true
         }
     }
 
     fun dropLocked(fd: Int, closeIt: Bool) {
         var i = 0
-        while (i < SseHub.subs.size()) {
-            if (SseHub.subs[i].call.conn.sock.fd == fd) {
-                val sub = SseHub.subs[i]
-                SseHub.subs.remove(i)
+        while (i < Sse.subs.size()) {
+            if (Sse.subs[i].call.conn.sock.fd == fd) {
+                val sub = Sse.subs[i]
+                Sse.subs.remove(i)
                 if (closeIt) {
                     try {
                         sub.call.conn.close()
