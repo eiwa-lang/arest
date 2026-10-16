@@ -16,7 +16,7 @@ test "arest.server: form() and body<T>() alias" {
             routing {
                 post("/login") {
                     val user = form("user")
-                    val pass = formOrDefault("pass", "none")
+                    val pass = (form("pass") ?: "none")
                     val userStr = if (user != null) user!! else "missing"
                     respondText("user=$userStr,pass=$pass")
                 }
@@ -43,7 +43,7 @@ test "arest.server: form() and body<T>() alias" {
                 post("/empty") {
                     val v = form("anything")
                     val out = if (v != null) v!! else "null-ok"
-                    val d = formOrDefault("anything", "def-ok")
+                    val d = (form("anything") ?: "def-ok")
                     respondText("$out,$d")
                 }
 

@@ -1,4 +1,7 @@
 import { ApplicationCall } from ".arest.server.application_call"
+import { MutableList } from "std.collections"
+import { Mutex, sync } from "std.thread"
+import { sleepMs } from "std.time"
 
 // Server-Sent Events over Transfer-Encoding: chunked (RFC 9112 §7.1).
 //
@@ -68,4 +71,141 @@ fun ApplicationCall.sendSseComment(comment: String) {
 fun ApplicationCall.closeSse() {
     this.conn.sock.write("0\r\n\r\n")
     this.conn.close()
+}
+
+// Shared hub for long-lived SSE streams.
+//
+// Rationale: a stream handler must NOT loop on its worker (each open
+// EventSource would pin one worker thread; 10 reloads starve a 10-worker
+// pool and every later request hangs). Instead the handler calls startSse()
+// and returns at once, handing the socket to the hub. One cooperative pump
+// task sends heartbeats; broadcasts fan out to every subscriber. Frame
+// writes are serialized by writeLock; dead sockets are dropped on write
+// failure (EventSource reconnects on its own).
+type SseSubscription(val call: ApplicationCall)
+
+object SseHub {
+    val lock: Mutex = Mutex()
+    val writeLock: Mutex = Mutex()
+    val subs: MutableList<SseSubscription> = MutableList<SseSubscription>()
+    var pumpStarted: Bool = false
+    var pumpRunning: Bool = true
+    var heartbeatMs: Int = 14000
+
+    fun subscribe(call: ApplicationCall) {
+        var start = false
+        sync(SseHub.lock) {
+            SseHub.subs.add(SseSubscription(call))
+            if (!SseHub.pumpStarted) {
+                SseHub.pumpStarted = true
+                SseHub.pumpRunning = true
+                start = true
+            }
+            true
+        }
+        if (start) {
+            task {
+                while (SseHub.pumpRunning) {
+                    sleepMs(SseHub.heartbeatMs)
+                    SseHub.heartbeat()
+                }
+            }
+        }
+    }
+
+    fun unsubscribe(call: ApplicationCall) {
+        sync(SseHub.lock) {
+            SseHub.dropLocked(call.conn.sock.fd, true)
+            true
+        }
+    }
+
+    fun stop() {
+        sync(SseHub.lock) {
+            SseHub.pumpRunning = false
+            SseHub.pumpStarted = false
+            true
+        }
+    }
+
+    fun count(): Int {
+        var n = 0
+        sync(SseHub.lock) {
+            n = SseHub.subs.size()
+            true
+        }
+        return n
+    }
+
+    fun broadcast(data: String, event: String? = null, id: String? = null) {
+        var payload = ""
+        if (event != null) {
+            payload = payload + "event: ${event}\n"
+        }
+        if (id != null) {
+            payload = payload + "id: ${id}\n"
+        }
+        payload = payload + "data: $data\n\n"
+        SseHub.pushAll(payload)
+    }
+
+    fun heartbeat() {
+        SseHub.pushAll(": hb\n\n")
+    }
+
+    fun pushAll(payload: String) {
+        val frame = "${chunkSizeHex(payload.length)}\r\n$payload\r\n"
+        val live: MutableList<SseSubscription> = MutableList<SseSubscription>()
+        sync(SseHub.lock) {
+            var i = 0
+            while (i < SseHub.subs.size()) {
+                live.add(SseHub.subs[i])
+                i = i + 1
+            }
+            true
+        }
+        var j = 0
+        while (j < live.size()) {
+            val sub = live[j]
+            if (!SseHub.pushOne(sub, frame)) {
+                SseHub.drop(sub.call.conn.sock.fd)
+            }
+            j = j + 1
+        }
+    }
+
+    fun pushOne(sub: SseSubscription, frame: String): Bool {
+        var ok = false
+        sync(SseHub.writeLock) {
+            val n = sub.call.conn.sock.write(frame)
+            ok = n == frame.length
+            true
+        }
+        return ok
+    }
+
+    fun drop(fd: Int) {
+        sync(SseHub.lock) {
+            SseHub.dropLocked(fd, true)
+            true
+        }
+    }
+
+    fun dropLocked(fd: Int, closeIt: Bool) {
+        var i = 0
+        while (i < SseHub.subs.size()) {
+            if (SseHub.subs[i].call.conn.sock.fd == fd) {
+                val sub = SseHub.subs[i]
+                SseHub.subs.remove(i)
+                if (closeIt) {
+                    try {
+                        sub.call.conn.close()
+                    } catch (e: Throwable) {
+                    }
+                }
+                return
+            }
+            i = i + 1
+        }
+    }
 }

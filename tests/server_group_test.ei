@@ -1,3 +1,4 @@
+import { HttpStatus } from "std.http"
 import { assert } from "std.core"
 import { Threads } from "std.thread"
 import { sleepMs } from "std.time"
@@ -35,7 +36,7 @@ test "arest.server: group(prefix) with nesting and path params" {
                             respondText("api-v1-user-$idStr")
                         }
                         post("/users") {
-                            respondText("api-v1-create", status = 201)
+                            respondText("api-v1-create", status = HttpStatus.CREATED)
                         }
                     }
                 }
@@ -53,7 +54,7 @@ test "arest.server: group(prefix) with nesting and path params" {
                         respondText("profile-root")
                     }
                     post {
-                        respondText("profile-create", status = 201)
+                        respondText("profile-create", status = HttpStatus.CREATED)
                     }
                 }
 

@@ -1,0 +1,72 @@
+import { assert } from "std.core"
+import { Threads } from "std.thread"
+import { sleepMs, nowMillis } from "std.time"
+import { Socket, SocketClient } from "std.net"
+import { arest } from ".arest.arest"
+import { startSse, SseHub } from ".arest.server.sse"
+
+// Open SSE streams must not pin worker threads. Each stream below is held open
+// by a subscription (like a browser EventSource); the handler returns at once.
+// With 12 open streams and 10 workers, an ordinary request must still be
+// served promptly. Before the fix each stream's handler looped with sleepMs
+// on its worker, so the ping stalled until a stream closed (14s observed).
+
+fun rawGet(port: Int, path: String): String {
+    val c = SocketClient.connect("127.0.0.1", port)
+    if (c == null) {
+        return "no-conn"
+    }
+    val s: Socket = c!!
+    s.write("GET $path HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+    return s.read(256)
+}
+
+test "arest.server.sse: open streams do not starve ordinary requests" {
+    val port = 19750
+    val streams = 12
+    var done = false
+    val watchdog = Threads.spawn {
+        sleepMs(20000)
+        if (!done) {
+            println("RED: ordinary request starved by open SSE streams")
+            Standard.exit(1)
+        }
+    }
+
+    val serverThread = Threads.spawn {
+        arest(port) {
+            routing {
+                get("/stream") {
+                    startSse()
+                    SseHub.subscribe(this)
+                }
+
+                get("/ping") {
+                    respondText("pong")
+                }
+            }
+        }
+    }
+
+    sleepMs(150)
+    val held: MutableList<Socket> = MutableList<Socket>()
+    var i = 0
+    while (i < streams) {
+        val c = SocketClient.connect("127.0.0.1", port)
+        if (c != null) {
+            val s: Socket = c!!
+            s.write("GET /stream HTTP/1.1\r\nHost: x\r\n\r\n")
+            held.add(s)
+        }
+        i = i + 1
+    }
+    sleepMs(500)
+
+    val t0 = nowMillis()
+    val body = rawGet(port, "/ping")
+    val elapsed = nowMillis() - t0
+    done = true
+
+    assert(body.contains("pong"), "ping must be answered while streams are open")
+    assert(elapsed < 1000, "ping answered in under 1s, took ${elapsed}ms")
+}

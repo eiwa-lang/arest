@@ -1,3 +1,4 @@
+import { HttpStatus } from "std.http"
 import { assert } from "std.core"
 import { Serializable } from "std.serde"
 import { Json } from "std.json"
@@ -56,7 +57,7 @@ test "arest.signed_cookies: set/get over HTTP" {
                 get("/me") {
                     val s = SignedCookie.getSignedCookie<TestSession>(this, "SID", secret)
                     if (s == null) {
-                        respondText("anon", 401)
+                        respondText("anon", HttpStatus.UNAUTHORIZED)
                     } else {
                         respondText("hi ${s!!.name}")
                     }

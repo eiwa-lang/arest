@@ -1,3 +1,4 @@
+import { HttpStatus } from "std.http"
 import { assert } from "std.core"
 import { Threads } from "std.thread"
 import { sleepMs } from "std.time"
@@ -21,11 +22,11 @@ test "arest.server: respond(Serializable) and receive<T>()" {
 
                 post("/echo_user") {
                     val u = this.receive<UserDto>()
-                    respond(u, status = 201)
+                    respond(u, status = HttpStatus.CREATED)
                 }
 
                 get("/search") {
-                    val q = queryOrDefault("q", "none")
+                    val q = (query("q") ?: "none")
                     val auth = header("Authorization")
                     val authStr = if (auth != null) auth!! else "anonymous"
                     respondText("q=$q, auth=$authStr")

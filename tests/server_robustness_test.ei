@@ -10,7 +10,7 @@ fun boom(): String {
 }
 
 test "arest.server: throwing route responds 500 and server stays up" {
-    val port = 19710
+    val port = 19720
     val serverThread = Threads.spawn {
         arest(port) {
             routing {
@@ -33,7 +33,7 @@ test "arest.server: throwing route responds 500 and server stays up" {
 
     sleepMs(80)
     val client = arestClient(CurlEngine()) {
-        baseUrl("http://127.0.0.1:19710")
+        baseUrl("http://127.0.0.1:19720")
     }
 
     // 1. Throwing route becomes 500, not a dropped connection

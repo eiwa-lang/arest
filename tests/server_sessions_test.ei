@@ -1,3 +1,4 @@
+import { HttpStatus } from "std.http"
 import { assert } from "std.core"
 import { Serializable } from "std.serde"
 import { Json } from "std.json"
@@ -23,7 +24,7 @@ test "arest.sessions: plain set/get/clear over HTTP" {
                 get("/check") {
                     val s = Sessions.getPlain<PkceSession>(this, "PKCE")
                     if (s == null) {
-                        respondText("missing", 401)
+                        respondText("missing", HttpStatus.UNAUTHORIZED)
                     } else {
                         respondText("v=${s!!.verifier}")
                     }
@@ -83,7 +84,7 @@ test "arest.sessions: signed set/get round-trip over HTTP" {
                 get("/me") {
                     val s = Sessions.getSigned<LoginSession>(this, "SID", secret)
                     if (s == null) {
-                        respondText("anon", 401)
+                        respondText("anon", HttpStatus.UNAUTHORIZED)
                     } else {
                         respondText("hi ${s!!.user}")
                     }
